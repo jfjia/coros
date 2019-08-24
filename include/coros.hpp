@@ -304,4 +304,17 @@ inline uv_loop_t* Scheduler::loop() const {
     return loop_ptr_;
 }
 
+inline Coroutine* coroutine_self() {
+    Scheduler* sched = Scheduler::get();
+    if (sched) {
+        return sched->current();
+    } else {
+        return nullptr;
+    }
+}
+
+inline bool is_in_coroutine() {
+    return coroutine_self() != nullptr;
+}
+
 }
