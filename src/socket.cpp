@@ -1,5 +1,5 @@
 #include "coros.hpp"
-#include "log.hpp"
+#include "malog.h"
 #include <cassert>
 #include <unistd.h>
 #include <string.h>
@@ -236,16 +236,16 @@ bool Socket::connect_ip(const std::string& ip, int port) {
 int Socket::read(char* data, int len) {
     for (;;) {
         int rc = ::recv(s_, data, len, 0);
-        log_debug("::recv(%d)=%d", s_, rc);
+        malog_debug("::recv(%d)=%d", s_, rc);
         if (rc >= 0) {
             return rc;
         }
         if (!would_block()) {
-            log_error("::recv() failed and cannot retry");
+            malog_error("::recv() failed and cannot retry");
             return rc;
         }
         Event ev = wait(WAIT_READABLE);
-        log_debug("wait(WAIT_READABLE)=%d", ev);
+        malog_debug("wait(WAIT_READABLE)=%d", ev);
         if (ev != EVENT_READABLE && ev != EVENT_RWABLE) {
             return -1;
         }
@@ -258,16 +258,16 @@ int Socket::write(const char* data, int len) {
 #endif
     for (;;) {
         int rc = ::send(s_, data, len, MSG_NOSIGNAL);
-        log_debug("::send(%d)=%d", s_, rc);
+        malog_debug("::send(%d)=%d", s_, rc);
         if (rc > 0) {
             return rc;
         }
         if (!would_block()) {
-            log_error("::send() failed and cannot retry");
+            malog_error("::send() failed and cannot retry");
             return rc;
         }
         Event ev = wait(WAIT_WRITABLE);
-        log_debug("wait(WAIT_WRITABLE)=%d", ev);
+        malog_debug("wait(WAIT_WRITABLE)=%d", ev);
         if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
             return -1;
         }

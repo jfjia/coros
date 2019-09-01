@@ -1,5 +1,5 @@
 #include "coros.hpp"
-#include "log.hpp"
+#include "malog.h"
 
 class MyCo {
 public:
@@ -8,13 +8,13 @@ public:
     }
 
     void fn() {
-        log_info("fn()");
+        malog_info("fn()");
         coro_.wait(500);
-        log_info("wait()");
+        malog_info("wait()");
     }
 
     void exit_fn() {
-        log_info("exit_fn()");
+        malog_info("exit_fn()");
         delete this;
     }
 
@@ -27,7 +27,7 @@ private:
 };
 
 int main(int argc, char** argv) {
-    LOG_OPEN("@stdout", 1, 0, coros::log::POLICY_WAIT);
+    MALOG_OPEN_STDIO(1, 0, true);
     coros::Scheduler* sched = coros::Scheduler::create();
     MyCo* co = new MyCo(sched);
     sched->add_coroutine(co->coro());
