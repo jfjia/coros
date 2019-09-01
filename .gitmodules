@@ -1,0 +1,3 @@
+[submodule "deps/malog"]
+	path = deps/malog
+	url = https://github.com/jfjia/malog
