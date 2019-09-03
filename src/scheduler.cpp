@@ -16,9 +16,8 @@ namespace coros {
 
 static const int SWEEP_INTERVAL = 1000;
 
-static const int RECV_BUFFER_SIZE = 256 * 1024;
+static const int RECV_BUFFER_SIZE = 64 * 1024;
 
-bool Scheduler::is_stack_unbounded_;
 std::size_t Scheduler::page_size_;
 std::size_t Scheduler::min_stack_size_;
 std::size_t Scheduler::max_stack_size_;
@@ -35,12 +34,10 @@ Scheduler::Scheduler(bool is_default)
         GetSystemInfo(&si);
         page_size_ = (std::size_t)si.dwPageSize;
 
-        is_stack_unbounded_ = true;
         min_stack_size_ = 8 * 1024;
         max_stack_size_ = 1024 * 1024;
         default_stack_size_ = 32 * 1024;
 #else
-        is_stack_unbounded_ = true;
 #if defined(SIGSTKSZ)
         default_stack_size_ = SIGSTKSZ;
 #else

@@ -82,8 +82,8 @@ public:
     void close();
     bool connect_host(const std::string& host, int port);
     bool connect_ip(const std::string& ip, int port);
-    int read(char* buf, int len);
-    int write(const char* buf, int len);
+    int read_some(char* buf, int len);
+    int write_some(const char* buf, int len);
     uv_os_sock_t accept();
     Event wait(int flags);
 
@@ -168,7 +168,6 @@ protected:
     void cleanup(CoroutineList& cl);
 
 protected:
-    static bool is_stack_unbounded_;
     static std::size_t page_size_;
     static std::size_t min_stack_size_;
     static std::size_t max_stack_size_;

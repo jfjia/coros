@@ -13,13 +13,13 @@ public:
     void fn() {
         char buf[256];
         for (;;) {
-            int len = s_.read(buf, 256);
+            int len = s_.read_some(buf, 256);
             malog_info("in bytes: %d", len);
             if (len <= 0) {
                 break;
             }
             malog_info("in string: %.*s", len, buf);
-            len = s_.write(buf, len);
+            len = s_.write_some(buf, len);
             malog_info("out bytes: %d", len);
             if (strncmp(buf, "exit", 4) == 0) {
                 break;

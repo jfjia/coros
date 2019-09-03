@@ -233,7 +233,7 @@ bool Socket::connect_ip(const std::string& ip, int port) {
     return true;
 }
 
-int Socket::read(char* data, int len) {
+int Socket::read_some(char* data, int len) {
     for (;;) {
         int rc = ::recv(s_, data, len, 0);
         malog_debug("::recv(%d)=%d", s_, rc);
@@ -252,7 +252,7 @@ int Socket::read(char* data, int len) {
     }
 }
 
-int Socket::write(const char* data, int len) {
+int Socket::write_some(const char* data, int len) {
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif

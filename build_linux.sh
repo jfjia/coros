@@ -1,7 +1,9 @@
 cd tools
 ./format_code.sh
 cd ..
-mkdir build_linux
+if [ ! -d "build_linux" ]; then
+    mkdir build_linux
+fi
 cd build_linux
 cmake ..
 make clean

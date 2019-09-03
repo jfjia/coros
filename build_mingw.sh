@@ -1,7 +1,9 @@
 cd tools
 ./format_code.sh
 cd ..
-mkdir build_mingw
+if [ ! -d "build_mingw" ]; then
+    mkdir build_mingw
+fi
 cd build_mingw
 cmake -G "MSYS Makefiles" ..
 make clean
