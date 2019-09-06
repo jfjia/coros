@@ -56,6 +56,7 @@ enum Event {
     EVENT_HUP = 7,
     EVENT_RWABLE = 8,
     EVENT_CONT = 9,
+    EVENT_COND = 10,
 };
 
 enum {
@@ -135,6 +136,32 @@ private:
 };
 
 typedef std::vector<Coroutine* > CoroutineList;
+
+class Condition {
+public:
+    void wait(Coroutine* coro) {
+        waiting_.push_back(coro);
+        coro->yield(STATE_WAITING);
+    }
+
+    void notify_one() {
+        if (waiting_.size() > 0) {
+            Coroutine* coro = waiting_.back();
+            waiting_.pop_back();
+            coro->set_event(EVENT_COND);
+        }
+    }
+
+    void notify_all() {
+        for (auto it = waiting_.begin(); it != waiting_.end(); it++) {
+            (*it)->set_event(EVENT_COND);
+        }
+        waiting_.clear();
+    }
+
+protected:
+    CoroutineList waiting_;
+};
 
 class Scheduler {
 public:
