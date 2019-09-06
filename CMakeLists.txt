@@ -3,9 +3,9 @@ cmake_minimum_required(VERSION 2.8)
 project(coros)
 
 if(UNIX)
-    enable_language(C CXX ASM)
+    enable_language(CXX ASM)
 else()
-    enable_language(C CXX ASM-ATT)
+    enable_language(CXX ASM-ATT)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -19,10 +19,6 @@ message("  CMAKE_BINARY_DIR: ${CMAKE_BINARY_DIR}")
 set(CMAKE_CXX_FLAGS "-std=c++11 -fPIC -fno-strict-aliasing -Wall ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -ggdb -D_DEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -ggdb -DNDEBUG")
-
-set(CMAKE_C_FLAGS "-std=c99 -fPIC -fno-strict-aliasing ${CMAKE_C_FLAGS}")
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g -ggdb -D_DEBUG")
-set(CMAKE_C_FLAGS_RELEASE "-O3 -g -ggdb -DNDEBUG")
 
 message("  CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}")
 
