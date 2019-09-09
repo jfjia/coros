@@ -15,10 +15,12 @@ public:
     void fn(uv_os_sock_t fd) {
         coros::Socket s(fd);
         char buf[256];
+        s.set_deadline(30);
         for (;;) {
             int len = s.read_some(buf, 256);
             malog_info("in bytes: %d", len);
             if (len <= 0) {
+                MALOG_INFO("coro[" << coro_.id() << "] read fail: " << len);
                 break;
             }
             malog_info("in string: %.*s", len, buf);

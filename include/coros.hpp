@@ -57,7 +57,6 @@ enum Event {
     EVENT_RWABLE = 8,
     EVENT_CONT = 9,
     EVENT_COND = 10,
-    EVENT_DISCONNECT = 11,
 };
 
 enum {
@@ -78,6 +77,7 @@ public:
     Socket(uv_os_sock_t s);
 
     void set_deadline(int timeout_secs);
+    int get_deadline();
     bool listen_by_host(const std::string& host, int port, int backlog = 1024);
     bool listen_by_ip(const std::string& ip, int port, int backlog = 1024);
     void close();

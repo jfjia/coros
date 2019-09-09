@@ -14,6 +14,10 @@ inline void Socket::set_deadline(int timeout_secs) {
     timeout_secs_ = timeout_secs;
 }
 
+inline int Socket::get_deadline() {
+    return timeout_secs_;
+}
+
 inline Event Socket::wait(int flags) {
     coro_->sched()->wait(coro_, *this, flags);
     return coro_->event();

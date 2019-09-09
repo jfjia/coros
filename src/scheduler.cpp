@@ -238,11 +238,12 @@ void Scheduler::wait(Coroutine* coro, Socket& s, int flags) {
         } else if (events & UV_WRITABLE) {
             ((Socket*)w->data)->coro_->set_event(EVENT_WRITABLE);
         } else if (events & UV_DISCONNECT) {
-            ((Socket*)w->data)->coro_->set_event(EVENT_DISCONNECT);
+            ((Socket*)w->data)->coro_->set_event(EVENT_HUP);
         } else {
             //???TODO
         }
     });
+    s.coro_->set_timeout(s.get_deadline());
     s.coro_->yield(STATE_WAITING);
     uv_poll_stop(&s.poll_);
 }
