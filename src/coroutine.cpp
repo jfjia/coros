@@ -22,6 +22,7 @@ bool Coroutine::create(Scheduler* sched, const Callback& fn, const Callback& exi
         ((Coroutine*)t.data)->state_ = STATE_DONE;
         context::jump_fcontext(((Coroutine*)t.data)->caller_, NULL);
     });
+    sched->add_coroutine(this);
     return true;
 }
 

@@ -28,10 +28,9 @@ private:
 
 int main(int argc, char** argv) {
     MALOG_OPEN_STDIO(1, 0, true);
-    coros::Scheduler* sched = coros::Scheduler::create();
-    MyCo* co = new MyCo(sched);
-    sched->add_coroutine(co->coro());
-    sched->run();
-    delete sched;
+    coros::Scheduler sched(true);
+    MyCo* co = new MyCo(&sched);
+    sched.add_coroutine(co->coro());
+    sched.run();
     return 0;
 }

@@ -5,81 +5,77 @@
 
 class Conn {
 public:
-    Conn(coros::Scheduler* sched, uv_os_sock_t s) : s_(s) {
-        coro_.create(sched, std::bind(&Conn::fn, this), std::bind(&Conn::exit_fn, this));
-        s_.attach(&coro_);
+    bool start(uv_os_sock_t fd) {
+        if (!coro_.create(coros::Scheduler::get(), std::bind(&Conn::fn, this, fd), std::bind(&Conn::exit_fn, this))) {
+            return false;
+        }
+        return true;
     }
 
-    void fn() {
+    void fn(uv_os_sock_t fd) {
+        coros::Socket s(fd);
         char buf[256];
         for (;;) {
-            int len = s_.read_some(buf, 256);
+            int len = s.read_some(buf, 256);
             malog_info("in bytes: %d", len);
             if (len <= 0) {
                 break;
             }
             malog_info("in string: %.*s", len, buf);
-            len = s_.write_some(buf, len);
+            len = s.write_some(buf, len);
             malog_info("out bytes: %d", len);
             if (strncmp(buf, "exit", 4) == 0) {
                 break;
             }
         }
-        s_.close();
+        s.close();
     }
 
     void exit_fn() {
+        MALOG_INFO("coro[" << coro_.id() << "] exit");
         delete this;
-    }
-
-    coros::Coroutine* coro() {
-        return &coro_;
     }
 
 private:
     coros::Coroutine coro_;
-    coros::Socket s_;
 };
 
 class Listener {
 public:
-    Listener(coros::Scheduler* sched) {
-        coro_.create(sched, std::bind(&Listener::fn, this), std::bind(&Listener::exit_fn, this));
-        s_.attach(&coro_);
+    bool start() {
+        if (!coro_.create(coros::Scheduler::get(), std::bind(&Listener::fn, this), std::bind(&Listener::exit_fn, this))) {
+            return false;
+        }
+        return true;
     }
 
     void fn() {
-        s_.listen_by_ip("0.0.0.0", 9090);
+        coros::Socket s;
+        s.listen_by_ip("0.0.0.0", 9090);
         for (;;) {
-            uv_os_sock_t s_new = s_.accept();
+            uv_os_sock_t s_new = s.accept();
             malog_info("new conn");
             if (s_new == BAD_SOCKET) {
                 malog_error("bad accept");
                 break;
             }
-            Conn* c = new Conn(coro_.sched(), s_new);
-            coro_.sched()->add_coroutine(c->coro());
+            Conn* c = new Conn();
+            c->start(s_new);
         }
     }
 
     void exit_fn() {
-        delete this;
     }
 
-    coros::Coroutine* coro() {
-        return &coro_;
-    }
 protected:
     coros::Coroutine coro_;
-    coros::Socket s_;
 };
 
 int main(int argc, char** argv) {
     MALOG_OPEN_STDIO(1, 0, true);
-    coros::Scheduler* sched = coros::Scheduler::create();
-    Listener* l = new Listener(sched);
-    sched->add_coroutine(l->coro());
-    sched->run();
-    delete sched;
+    coros::Scheduler sched(true);
+    Listener l;
+    l.start();
+    sched.run();
     return 0;
 }

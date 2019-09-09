@@ -57,6 +57,7 @@ enum Event {
     EVENT_RWABLE = 8,
     EVENT_CONT = 9,
     EVENT_COND = 10,
+    EVENT_DISCONNECT = 11,
 };
 
 enum {
@@ -73,10 +74,9 @@ class Socket {
     friend class Scheduler;
 
 public:
-    Socket(uv_os_sock_t s = BAD_SOCKET);
+    Socket();
+    Socket(uv_os_sock_t s);
 
-    void attach(Coroutine* coro);
-    void attach(uv_os_sock_t s, Coroutine* coro);
     void set_deadline(int timeout_secs);
     bool listen_by_host(const std::string& host, int port, int backlog = 1024);
     bool listen_by_ip(const std::string& ip, int port, int backlog = 1024);
@@ -91,13 +91,14 @@ public:
 protected:
     uv_os_sock_t s_;
     uv_poll_t poll_;
-    Coroutine* coro_{ nullptr };
     int timeout_secs_{ 0 };
-    std::vector<char> recv_buf_;
+    Coroutine* coro_{ nullptr };
 };
 
 class Coroutine {
 public:
+    static Coroutine* self();
+
     bool create(Scheduler* sched, const Callback& fn, const Callback& exit_fn);
     void destroy();
 
@@ -165,9 +166,9 @@ protected:
 
 class Scheduler {
 public:
-    static Scheduler* create(bool is_default = true);
     static Scheduler* get();
 
+    Scheduler(bool is_default);
     ~Scheduler();
 
     std::size_t next_coro_id();
@@ -185,8 +186,6 @@ public:
     uv_loop_t* loop() const;
 
 protected:
-    Scheduler(bool is_default);
-
     void pre();
     void check();
     void async();
@@ -212,135 +211,8 @@ protected:
     std::mutex lock_;
     int outstanding_{ 0 };
     CoroutineList posted_;
-    char* recv_buf_;
 };
 
-inline Socket::Socket(uv_os_sock_t s)
-    : s_(s) {
-    poll_.data = (void*)this;
-}
-
-inline void Socket::attach(Coroutine* coro) {
-    coro_ = coro;
-    if (s_ != BAD_SOCKET) {
-        uv_poll_init_socket(coro->sched()->loop(), &poll_, s_);
-    }
-}
-
-inline void Socket::attach(uv_os_sock_t s, Coroutine* coro) {
-    s_ = s;
-    coro_ = coro;
-    if (s_ != BAD_SOCKET) {
-        uv_poll_init_socket(coro->sched()->loop(), &poll_, s_);
-    }
-}
-
-inline void Socket::set_deadline(int timeout_secs) {
-    timeout_secs_ = timeout_secs;
-}
-
-inline Event Socket::wait(int flags) {
-    coro_->sched()->wait(coro_, *this, flags);
-    return coro_->event();
-}
-
-inline void Coroutine::join(Coroutine* coro) {
-    if (coro->state() == STATE_DONE) {
-        return;
-    }
-    coro->joined_ = this;
-    yield(STATE_WAITING);
-}
-
-inline void Coroutine::cancel() {
-    set_event(EVENT_CANCEL);
-}
-
-inline void Coroutine::wait(long millisecs) {
-    sched_->wait(this, millisecs);
-}
-
-inline void Coroutine::set_event(Event new_event) {
-    state_ = STATE_READY;
-    event_ = new_event;
-}
-
-inline State Coroutine::state() const {
-    return state_;
-}
-
-inline Event Coroutine::event() const {
-    return event_;
-}
-
-inline void Coroutine::resume() {
-    state_ = STATE_RUNNING;
-    ctx_ = context::jump_fcontext(ctx_, (void*)this).fctx;
-}
-
-inline void Coroutine::yield(State new_state) {
-    state_ = new_state;
-    caller_ = context::jump_fcontext(caller_, (void*)this).fctx;
-    if (event_ == EVENT_CANCEL) {
-        throw Unwind();
-    }
-}
-
-inline Scheduler* Coroutine::sched() const {
-    return sched_;
-}
-
-inline std::size_t Coroutine::id() const {
-    return id_;
-}
-
-inline void Coroutine::nice() {
-    yield(STATE_READY);
-}
-
-inline void Coroutine::begin_compute() {
-    sched_->begin_compute(this);
-}
-
-inline void Coroutine::end_compute() {
-    yield(STATE_READY);
-}
-
-inline void Coroutine::set_timeout(int seconds) {
-    timeout_secs_ = seconds;
-}
-
-inline void Coroutine::check_timeout() {
-    if (state_ == STATE_WAITING) {
-        if (timeout_secs_ > 0) {
-            timeout_secs_ --;
-            if (timeout_secs_ == 0) {
-                state_ = STATE_READY;
-                event_ = EVENT_TIMEOUT;
-            }
-        }
-    }
-}
-
-inline Coroutine* Scheduler::current() const {
-    return current_;
-}
-
-inline uv_loop_t* Scheduler::loop() const {
-    return loop_ptr_;
-}
-
-inline Coroutine* coroutine_self() {
-    Scheduler* sched = Scheduler::get();
-    if (sched) {
-        return sched->current();
-    } else {
-        return nullptr;
-    }
-}
-
-inline bool is_in_coroutine() {
-    return coroutine_self() != nullptr;
-}
+#include "coros-inl.hpp"
 
 }

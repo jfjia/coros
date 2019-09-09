@@ -1,4 +1,5 @@
 #include "coros.hpp"
+#include "malog.h"
 #include <cassert>
 #include <cmath>
 #include <atomic>
@@ -22,6 +23,8 @@ std::size_t Scheduler::page_size_;
 std::size_t Scheduler::min_stack_size_;
 std::size_t Scheduler::max_stack_size_;
 std::size_t Scheduler::default_stack_size_;
+
+thread_local Scheduler* local_sched = nullptr;
 
 Scheduler::Scheduler(bool is_default)
     : is_default_(is_default) {
@@ -83,7 +86,7 @@ Scheduler::Scheduler(bool is_default)
         ((Scheduler*)w->data)->sweep();
     }, SWEEP_INTERVAL, SWEEP_INTERVAL);
 
-    recv_buf_ = new char[RECV_BUFFER_SIZE];
+    local_sched = this;
 }
 
 void Scheduler::pre() {
@@ -137,7 +140,6 @@ Scheduler::~Scheduler() {
         WSACleanup();
 #endif
     }
-    delete []recv_buf_;
 }
 
 std::size_t Scheduler::next_coro_id() {
@@ -224,7 +226,9 @@ void Scheduler::wait(Coroutine* coro, Socket& s, int flags) {
     if (flags & WAIT_WRITABLE) {
         events |= UV_WRITABLE;
     }
+    events |= UV_DISCONNECT;
     uv_poll_start(&s.poll_, events, [](uv_poll_t* w, int status, int events) {
+        MALOG_INFO("status: " << status << ", events=" << events);
         if (status > 0) {
             ((Socket*)w->data)->coro_->set_event(EVENT_HUP);
         } else if ((events & UV_READABLE) && (events & UV_WRITABLE)) {
@@ -233,6 +237,8 @@ void Scheduler::wait(Coroutine* coro, Socket& s, int flags) {
             ((Socket*)w->data)->coro_->set_event(EVENT_READABLE);
         } else if (events & UV_WRITABLE) {
             ((Socket*)w->data)->coro_->set_event(EVENT_WRITABLE);
+        } else if (events & UV_DISCONNECT) {
+            ((Socket*)w->data)->coro_->set_event(EVENT_DISCONNECT);
         } else {
             //???TODO
         }
@@ -312,19 +318,8 @@ void Scheduler::deallocate_stack(Stack& stack) {
 #endif
 }
 
-thread_local Scheduler* local_sched = nullptr;
-
 Scheduler* Scheduler::get() {
     return local_sched;
-}
-
-Scheduler* Scheduler::create(bool is_default) {
-    if (local_sched) {
-        return local_sched;
-    }
-    Scheduler* sched = new Scheduler(is_default);
-    local_sched = sched;
-    return sched;
 }
 
 }
