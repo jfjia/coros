@@ -18,14 +18,13 @@ public:
     s.SetDeadline(30);
     for (;;) {
       int len = s.ReadSome(buf, 256);
-      malog_info("in bytes: %d", len);
+      MALOG_INFO("coro[" << coro_.GetId() << "]: in " << len << " bytes");
       if (len <= 0) {
         MALOG_INFO("coro[" << coro_.GetId() << "] read fail: " << len);
         break;
       }
-      malog_info("in string: %.*s", len, buf);
       len = s.WriteSome(buf, len);
-      malog_info("out bytes: %d", len);
+      MALOG_INFO("coro[" << coro_.GetId() << "] out " << len << "bytes");
       if (strncmp(buf, "exit", 4) == 0) {
         break;
       }
@@ -56,9 +55,8 @@ public:
     s.ListenByIp("0.0.0.0", 9090);
     for (;;) {
       uv_os_sock_t s_new = s.Accept();
-      malog_info("new conn");
+      MALOG_INFO("coro[" << coro_.GetId() << ": accept new " << s_new);
       if (s_new == BAD_SOCKET) {
-        malog_error("bad accept");
         break;
       }
       Conn* c = new Conn();

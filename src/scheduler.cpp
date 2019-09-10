@@ -1,5 +1,4 @@
 #include "coros.hpp"
-#include "malog.h"
 #include <cassert>
 #include <cmath>
 #include <atomic>
@@ -16,11 +15,15 @@
 #include <fcntl.h>
 #endif
 
+#undef USE_UV_THREADPOOL
+
 namespace coros {
 
 static const int SWEEP_INTERVAL = 1000;
 static const int RECV_BUFFER_SIZE = 64 * 1024;
+#ifndef USE_UV_THREADPOOL
 static const int COMPUTE_THREADS_N = 2;
+#endif
 
 std::size_t Scheduler::page_size_;
 std::size_t Scheduler::min_stack_size_;
@@ -29,6 +32,7 @@ std::size_t Scheduler::default_stack_size_;
 
 thread_local Scheduler* local_sched = nullptr;
 
+#ifndef USE_UV_THREADPOOL
 class ComputeThreads {
 public:
   void Start();
@@ -47,6 +51,7 @@ protected:
 };
 
 ComputeThreads compute_threads;
+#endif
 
 Scheduler::Scheduler(bool is_default)
   : is_default_(is_default) {
@@ -79,11 +84,15 @@ Scheduler::Scheduler(bool is_default)
     max_stack_size_ = (size_t)limit.rlim_max;
 #endif
     loop_ptr_ = uv_default_loop();
+#ifndef USE_UV_THREADPOOL
     compute_threads.Start();
+#endif
   } else {
     uv_loop_init(&loop_);
     loop_ptr_ = &loop_;
   }
+
+  loop_ptr_->data = this;
 
   pre_.data = this;
   uv_prepare_init(loop_ptr_, &pre_);
@@ -97,10 +106,12 @@ Scheduler::Scheduler(bool is_default)
     (reinterpret_cast<Scheduler*>(handle->data))->Check();
   });
 
+  async_.data = this;
   uv_async_init(loop_ptr_, &async_, [](uv_async_t* handle) {
     (reinterpret_cast<Scheduler*>(handle->data))->Async();
   });
 
+  sweep_timer_.data = this;
   uv_timer_init(loop_ptr_, &sweep_timer_);
   uv_timer_start(&sweep_timer_, [](uv_timer_t* handle) {
     (reinterpret_cast<Scheduler*>(handle->data))->Sweep();
@@ -135,11 +146,15 @@ void Scheduler::Check() {
 
 void Scheduler::Async() {
   std::lock_guard<std::mutex> l(lock_);
-  ready_.insert(ready_.end(), posted_.begin(), posted_.end());
-  posted_.clear();
-  ready_.insert(ready_.end(), compute_done_.begin(), compute_done_.end());
-  outstanding_ -= compute_done_.size();
-  compute_done_.clear();
+  if (posted_.size() > 0) {
+    ready_.insert(ready_.end(), posted_.begin(), posted_.end());
+    posted_.clear();
+  }
+  if (compute_done_.size() > 0) {
+    ready_.insert(ready_.end(), compute_done_.begin(), compute_done_.end());
+    outstanding_ -= compute_done_.size();
+    compute_done_.clear();
+  }
 }
 
 void Scheduler::Sweep() {
@@ -158,7 +173,9 @@ void Scheduler::Sweep() {
 Scheduler::~Scheduler() {
   uv_loop_close(loop_ptr_);
   if (is_default_) {
+#ifndef USE_UV_THREADPOOL
     compute_threads.Stop();
+#endif
 #if defined(_WIN32)
     WSACleanup();
 #endif
@@ -223,7 +240,9 @@ void Scheduler::RunCoros() {
       } else if (c->GetState() == STATE_COMPUTE) {
         FastDelVectorItem<Coroutine*>(ready_, i);
         outstanding_ ++;
+#ifndef USE_UV_THREADPOOL
         compute_threads.Add(c);
+#endif
       }
       i++;
     }
@@ -235,12 +254,12 @@ void Scheduler::RunCoros() {
 
 void Scheduler::Wait(Coroutine* coro, long millisecs) {
   uv_timer_t timer;
-  timer.data = (void*)coro;
+  timer.data = coro;
   uv_timer_init(loop_ptr_, &timer);
   uv_timer_start(&timer, [](uv_timer_t* w) {
     uv_timer_stop(w);
-    uv_close(reinterpret_cast<uv_handle_t*>(w), [](uv_handle_t* w) {
-      ((Coroutine*)w->data)->SetEvent(EVENT_TIMEOUT);
+    uv_close(reinterpret_cast<uv_handle_t*>(w), [](uv_handle_t* handle) {
+      (reinterpret_cast<Coroutine*>(handle->data))->SetEvent(EVENT_TIMEOUT);
     });
   }, millisecs, 0);
   coro->Yield(STATE_WAITING);
@@ -256,7 +275,6 @@ void Scheduler::Wait(Coroutine* coro, Socket& s, int flags) {
   }
   events |= UV_DISCONNECT;
   uv_poll_start(&s.poll_, events, [](uv_poll_t* w, int status, int events) {
-    MALOG_INFO("status: " << status << ", events=" << events);
     if (status > 0) {
       ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
     } else if ((events & UV_READABLE) && (events & UV_WRITABLE)) {
@@ -298,17 +316,18 @@ void Scheduler::PostCoroutine(Coroutine* coro, bool is_compute) {
 }
 
 void Scheduler::BeginCompute(Coroutine* coro) {
-  /*uv_work_t c;
+#ifdef USE_UV_THREADPOOL
+  uv_work_t c;
   c.data = (void*)coro;
-  uv_queue_work(loop_.value(), &c, [](uv_work_t* w) {
-      ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE);
-      ((Coroutine*)w->data)->Resume();
+  uv_queue_work(loop_ptr_, &c, [](uv_work_t* w) {
+    ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE);
+    ((Coroutine*)w->data)->Resume();
   }, [](uv_work_t* w, int status) {
-      ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE_DONE);
-      ((Coroutine*)w->data)->GetScheduler()->AddCoroutine((Coroutine*)w->data);
-      ((Coroutine*)w->data)->GetScheduler()->outstanding_ --;
+    ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE_DONE);
+    ((Coroutine*)w->data)->GetScheduler()->AddCoroutine((Coroutine*)w->data);
+    ((Coroutine*)w->data)->GetScheduler()->outstanding_ --;
   });
-  */
+#endif
   coro->Yield(STATE_COMPUTE);
 }
 
@@ -356,6 +375,7 @@ Scheduler* Scheduler::Get() {
   return local_sched;
 }
 
+#ifndef USE_UV_THREADPOOL
 void ComputeThreads::Start() {
   for (int i = 0; i < COMPUTE_THREADS_N; i++) {
     threads_.emplace_back(std::bind(&ComputeThreads::Consume, this));
@@ -408,5 +428,6 @@ void ComputeThreads::Consume() {
     coro->GetScheduler()->PostCoroutine(coro, true);
   }
 }
+#endif
 
 }

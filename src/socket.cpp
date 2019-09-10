@@ -1,5 +1,4 @@
 #include "coros.hpp"
-#include "malog.h"
 #include <cassert>
 #include <unistd.h>
 #include <string.h>
@@ -236,16 +235,13 @@ bool Socket::ConnectIp(const std::string& ip, int port) {
 int Socket::ReadSome(char* data, int len) {
   for (;;) {
     int rc = ::recv(s_, data, len, 0);
-    malog_debug("::recv(%d)=%d", s_, rc);
     if (rc >= 0) {
       return rc;
     }
     if (!WouldBlock()) {
-      malog_error("::recv() failed and cannot retry");
       return rc;
     }
     Event ev = Wait(WAIT_READABLE);
-    malog_debug("wait(WAIT_READABLE)=%d", ev);
     if (ev != EVENT_READABLE && ev != EVENT_RWABLE) {
       return -1;
     }
@@ -258,16 +254,13 @@ int Socket::WriteSome(const char* data, int len) {
 #endif
   for (;;) {
     int rc = ::send(s_, data, len, MSG_NOSIGNAL);
-    malog_debug("::send(%d)=%d", s_, rc);
     if (rc > 0) {
       return rc;
     }
     if (!WouldBlock()) {
-      malog_error("::send() failed and cannot retry");
       return rc;
     }
     Event ev = Wait(WAIT_WRITABLE);
-    malog_debug("wait(WAIT_WRITABLE)=%d", ev);
     if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
       return -1;
     }
