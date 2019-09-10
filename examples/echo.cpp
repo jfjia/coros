@@ -5,36 +5,36 @@
 
 class Conn {
 public:
-  bool start(uv_os_sock_t fd) {
-    if (!coro_.create(coros::Scheduler::get(), std::bind(&Conn::fn, this, fd), std::bind(&Conn::exit_fn, this))) {
+  bool Start(uv_os_sock_t fd) {
+    if (!coro_.Create(coros::Scheduler::Get(), std::bind(&Conn::Fn, this, fd), std::bind(&Conn::ExitFn, this))) {
       return false;
     }
     return true;
   }
 
-  void fn(uv_os_sock_t fd) {
+  void Fn(uv_os_sock_t fd) {
     coros::Socket s(fd);
     char buf[256];
-    s.set_deadline(30);
+    s.SetDeadline(30);
     for (;;) {
-      int len = s.read_some(buf, 256);
+      int len = s.ReadSome(buf, 256);
       malog_info("in bytes: %d", len);
       if (len <= 0) {
-        MALOG_INFO("coro[" << coro_.id() << "] read fail: " << len);
+        MALOG_INFO("coro[" << coro_.GetId() << "] read fail: " << len);
         break;
       }
       malog_info("in string: %.*s", len, buf);
-      len = s.write_some(buf, len);
+      len = s.WriteSome(buf, len);
       malog_info("out bytes: %d", len);
       if (strncmp(buf, "exit", 4) == 0) {
         break;
       }
     }
-    s.close();
+    s.Close();
   }
 
-  void exit_fn() {
-    MALOG_INFO("coro[" << coro_.id() << "] exit");
+  void ExitFn() {
+    MALOG_INFO("coro[" << coro_.GetId() << "] exit");
     delete this;
   }
 
@@ -44,29 +44,29 @@ private:
 
 class Listener {
 public:
-  bool start() {
-    if (!coro_.create(coros::Scheduler::get(), std::bind(&Listener::fn, this), std::bind(&Listener::exit_fn, this))) {
+  bool Start() {
+    if (!coro_.Create(coros::Scheduler::Get(), std::bind(&Listener::Fn, this), std::bind(&Listener::ExitFn, this))) {
       return false;
     }
     return true;
   }
 
-  void fn() {
+  void Fn() {
     coros::Socket s;
-    s.listen_by_ip("0.0.0.0", 9090);
+    s.ListenByIp("0.0.0.0", 9090);
     for (;;) {
-      uv_os_sock_t s_new = s.accept();
+      uv_os_sock_t s_new = s.Accept();
       malog_info("new conn");
       if (s_new == BAD_SOCKET) {
         malog_error("bad accept");
         break;
       }
       Conn* c = new Conn();
-      c->start(s_new);
+      c->Start(s_new);
     }
   }
 
-  void exit_fn() {
+  void ExitFn() {
   }
 
 protected:
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, 0, true);
   coros::Scheduler sched(true);
   Listener l;
-  l.start();
-  sched.run();
+  l.Start();
+  sched.Run();
   return 0;
 }

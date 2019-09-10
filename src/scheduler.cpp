@@ -31,12 +31,12 @@ thread_local Scheduler* local_sched = nullptr;
 
 class ComputeThreads {
 public:
-  void start();
-  void stop();
-  void add(Coroutine* coro);
+  void Start();
+  void Stop();
+  void Add(Coroutine* coro);
 
 protected:
-  void consume();
+  void Consume();
 
 protected:
   bool stop_{ false };
@@ -79,50 +79,50 @@ Scheduler::Scheduler(bool is_default)
     max_stack_size_ = (size_t)limit.rlim_max;
 #endif
     loop_.init(true);
-    compute_threads.start();
+    compute_threads.Start();
   } else {
     loop_.init(false);
   }
 
   pre_.init(loop_);
-  pre_.start(std::bind(&Scheduler::pre, this));
+  pre_.start(std::bind(&Scheduler::Pre, this));
 
   check_.init(loop_);
-  check_.start(std::bind(&Scheduler::check, this));
+  check_.start(std::bind(&Scheduler::Check, this));
 
-  async_.init(loop_, std::bind(&Scheduler::async, this));
+  async_.init(loop_, std::bind(&Scheduler::Async, this));
 
   sweep_timer_.init(loop_);
-  sweep_timer_.start(std::bind(&Scheduler::sweep, this), SWEEP_INTERVAL, SWEEP_INTERVAL);
+  sweep_timer_.start(std::bind(&Scheduler::Sweep, this), SWEEP_INTERVAL, SWEEP_INTERVAL);
 
   local_sched = this;
 }
 
-void Scheduler::pre() {
-  check();
+void Scheduler::Pre() {
+  Check();
 }
 
 template<typename T>
-inline void fast_del_vector_item(std::vector<T>& v, std::size_t i) {
+inline void FastDelVectorItem(std::vector<T>& v, std::size_t i) {
   assert(i >= 0 && i < v.size());
   v[i] = v[v.size() - 1];
   v.pop_back();
 }
 
-void Scheduler::check() {
+void Scheduler::Check() {
   for (std::size_t i = 0; i < waiting_.size();) {
     Coroutine* c = waiting_[i];
-    if (c->state() == STATE_READY) {
+    if (c->GetState() == STATE_READY) {
       ready_.push_back(c);
-      fast_del_vector_item<Coroutine* >(waiting_, i);
+      FastDelVectorItem<Coroutine* >(waiting_, i);
       continue;
     }
     i++;
   }
-  run_coros();
+  RunCoros();
 }
 
-void Scheduler::async() {
+void Scheduler::Async() {
   std::lock_guard<std::mutex> l(lock_);
   ready_.insert(ready_.end(), posted_.begin(), posted_.end());
   posted_.clear();
@@ -131,13 +131,13 @@ void Scheduler::async() {
   compute_done_.clear();
 }
 
-void Scheduler::sweep() {
+void Scheduler::Sweep() {
   for (std::size_t i = 0; i < waiting_.size();) {
     Coroutine* c = waiting_[i];
-    c->check_timeout();
-    if (c->state() == STATE_READY) {
+    c->CheckTimeout();
+    if (c->GetState() == STATE_READY) {
       ready_.push_back(c);
-      fast_del_vector_item<Coroutine* >(waiting_, i);
+      FastDelVectorItem<Coroutine* >(waiting_, i);
       continue;
     }
     i++;
@@ -147,20 +147,20 @@ void Scheduler::sweep() {
 Scheduler::~Scheduler() {
   uv_loop_close(loop_.value());
   if (is_default_) {
-    compute_threads.stop();
+    compute_threads.Stop();
 #if defined(_WIN32)
     WSACleanup();
 #endif
   }
 }
 
-std::size_t Scheduler::next_coro_id() {
+std::size_t Scheduler::NextId() {
   static std::atomic<std::size_t> next_id{ 1 };
   return next_id.fetch_add(1);
 }
 
-void Scheduler::add_coroutine(Coroutine* coro) {
-  switch (coro->state()) {
+void Scheduler::AddCoroutine(Coroutine* coro) {
+  switch (coro->GetState()) {
   case STATE_READY:
     ready_.push_back(coro);
     break;
@@ -168,7 +168,7 @@ void Scheduler::add_coroutine(Coroutine* coro) {
     waiting_.push_back(coro);
     break;
   case STATE_DONE:
-    coro->destroy();
+    coro->Destroy();
     break;
   default:
     assert(false);
@@ -176,10 +176,10 @@ void Scheduler::add_coroutine(Coroutine* coro) {
   }
 }
 
-void Scheduler::run() {
+void Scheduler::Run() {
   loop_.run();
-  cleanup(ready_);
-  cleanup(waiting_);
+  Cleanup(ready_);
+  Cleanup(waiting_);
   sweep_timer_.stop();
   check_.stop();
   pre_.stop();
@@ -190,25 +190,25 @@ void Scheduler::run() {
   loop_.runNowait();
 }
 
-void Scheduler::run_coros() {
+void Scheduler::RunCoros() {
   while (ready_.size() > 0) {
     for (std::size_t i = 0; i < ready_.size();) {
       Coroutine* c = ready_[i];
       current_ = c;
-      c->resume();
+      c->Resume();
       current_ = nullptr;
-      if (c->state() == STATE_DONE) {
-        c->destroy();
-        fast_del_vector_item<Coroutine*>(ready_, i);
+      if (c->GetState() == STATE_DONE) {
+        c->Destroy();
+        FastDelVectorItem<Coroutine*>(ready_, i);
         continue;
-      } else if (c->state() == STATE_WAITING) {
+      } else if (c->GetState() == STATE_WAITING) {
         waiting_.push_back(c);
-        fast_del_vector_item<Coroutine*>(ready_, i);
+        FastDelVectorItem<Coroutine*>(ready_, i);
         continue;
-      } else if (c->state() == STATE_COMPUTE) {
-        fast_del_vector_item<Coroutine*>(ready_, i);
+      } else if (c->GetState() == STATE_COMPUTE) {
+        FastDelVectorItem<Coroutine*>(ready_, i);
         outstanding_ ++;
-        compute_threads.add(c);
+        compute_threads.Add(c);
       }
       i++;
     }
@@ -218,20 +218,20 @@ void Scheduler::run_coros() {
   }
 }
 
-void Scheduler::wait(Coroutine* coro, long millisecs) {
+void Scheduler::Wait(Coroutine* coro, long millisecs) {
   uv_timer_t timer;
   timer.data = (void*)coro;
   uv_timer_init(loop_.value(), &timer);
   uv_timer_start(&timer, [](uv_timer_t* w) {
     uv_timer_stop(w);
     uv_close(reinterpret_cast<uv_handle_t*>(w), [](uv_handle_t* w) {
-      ((Coroutine*)w->data)->set_event(EVENT_TIMEOUT);
+      ((Coroutine*)w->data)->SetEvent(EVENT_TIMEOUT);
     });
   }, millisecs, 0);
-  coro->yield(STATE_WAITING);
+  coro->Yield(STATE_WAITING);
 }
 
-void Scheduler::wait(Coroutine* coro, Socket& s, int flags) {
+void Scheduler::Wait(Coroutine* coro, Socket& s, int flags) {
   int events = 0;
   if (flags & WAIT_READABLE) {
     events |= UV_READABLE;
@@ -243,34 +243,34 @@ void Scheduler::wait(Coroutine* coro, Socket& s, int flags) {
   uv_poll_start(&s.poll_, events, [](uv_poll_t* w, int status, int events) {
     MALOG_INFO("status: " << status << ", events=" << events);
     if (status > 0) {
-      ((Socket*)w->data)->coro_->set_event(EVENT_HUP);
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
     } else if ((events & UV_READABLE) && (events & UV_WRITABLE)) {
-      ((Socket*)w->data)->coro_->set_event(EVENT_RWABLE);
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_RWABLE);
     } else if (events & UV_READABLE) {
-      ((Socket*)w->data)->coro_->set_event(EVENT_READABLE);
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_READABLE);
     } else if (events & UV_WRITABLE) {
-      ((Socket*)w->data)->coro_->set_event(EVENT_WRITABLE);
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_WRITABLE);
     } else if (events & UV_DISCONNECT) {
-      ((Socket*)w->data)->coro_->set_event(EVENT_HUP);
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
     } else {
       //???TODO
     }
   });
-  s.coro_->set_timeout(s.get_deadline());
-  s.coro_->yield(STATE_WAITING);
+  s.coro_->SetTimeout(s.GetDeadline());
+  s.coro_->Yield(STATE_WAITING);
   uv_poll_stop(&s.poll_);
 }
 
-void Scheduler::cleanup(CoroutineList& cl) {
+void Scheduler::Cleanup(CoroutineList& cl) {
   for (auto c : cl) {
-    c->set_event(EVENT_CANCEL);
-    c->resume();
-    c->destroy();
+    c->SetEvent(EVENT_CANCEL);
+    c->Resume();
+    c->Destroy();
   }
   cl.clear();
 }
 
-void Scheduler::post_coroutine(Coroutine* coro, bool is_compute) {
+void Scheduler::PostCoroutine(Coroutine* coro, bool is_compute) {
   {
     std::lock_guard<std::mutex> l(lock_);
     if (is_compute) {
@@ -282,22 +282,22 @@ void Scheduler::post_coroutine(Coroutine* coro, bool is_compute) {
   async_.send();
 }
 
-void Scheduler::begin_compute(Coroutine* coro) {
+void Scheduler::BeginCompute(Coroutine* coro) {
   /*uv_work_t c;
   c.data = (void*)coro;
   uv_queue_work(loop_.value(), &c, [](uv_work_t* w) {
-      ((Coroutine*)w->data)->set_event(EVENT_COMPUTE);
-      ((Coroutine*)w->data)->resume();
+      ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE);
+      ((Coroutine*)w->data)->Resume();
   }, [](uv_work_t* w, int status) {
-      ((Coroutine*)w->data)->set_event(EVENT_COMPUTE_DONE);
-      ((Coroutine*)w->data)->sched()->add_coroutine((Coroutine*)w->data);
-      ((Coroutine*)w->data)->sched()->outstanding_ --;
+      ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE_DONE);
+      ((Coroutine*)w->data)->GetScheduler()->AddCoroutine((Coroutine*)w->data);
+      ((Coroutine*)w->data)->GetScheduler()->outstanding_ --;
   });
   */
-  coro->yield(STATE_COMPUTE);
+  coro->Yield(STATE_COMPUTE);
 }
 
-Stack Scheduler::allocate_stack() {
+Stack Scheduler::AllocateStack() {
   const std::size_t pages(static_cast<std::size_t>(std::ceil(static_cast<float>(default_stack_size_) / page_size_)));
   const std::size_t size__ = (pages + 1) * page_size_;
   Stack stack;
@@ -327,7 +327,7 @@ Stack Scheduler::allocate_stack() {
   return stack;
 }
 
-void Scheduler::deallocate_stack(Stack& stack) {
+void Scheduler::DeallocateStack(Stack& stack) {
   assert(stack.sp);
   void* vp = static_cast< char* >(stack.sp) - stack.size;
 #if defined(_WIN32)
@@ -337,17 +337,17 @@ void Scheduler::deallocate_stack(Stack& stack) {
 #endif
 }
 
-Scheduler* Scheduler::get() {
+Scheduler* Scheduler::Get() {
   return local_sched;
 }
 
-void ComputeThreads::start() {
+void ComputeThreads::Start() {
   for (int i = 0; i < COMPUTE_THREADS_N; i++) {
-    threads_.emplace_back(std::bind(&ComputeThreads::consume, this));
+    threads_.emplace_back(std::bind(&ComputeThreads::Consume, this));
   }
 }
 
-void ComputeThreads::stop() {
+void ComputeThreads::Stop() {
   {
     std::lock_guard<std::mutex> l(lock_);
     stop_ = true;
@@ -360,20 +360,20 @@ void ComputeThreads::stop() {
   }
   threads_.clear();
   for (auto i : pending_) {
-    i->set_event(EVENT_CANCEL);
-    i->resume();
-    i->destroy();
+    i->SetEvent(EVENT_CANCEL);
+    i->Resume();
+    i->Destroy();
   }
   pending_.clear();
 }
 
-inline void ComputeThreads::add(Coroutine* coro) {
+inline void ComputeThreads::Add(Coroutine* coro) {
   std::lock_guard<std::mutex> l(lock_);
   pending_.push_back(coro);
   cond_.notify_all();
 }
 
-void ComputeThreads::consume() {
+void ComputeThreads::Consume() {
   Coroutine* coro;
   while (true) {
     {
@@ -388,9 +388,9 @@ void ComputeThreads::consume() {
       coro = pending_.back();
       pending_.pop_back();
     }
-    coro->set_event(EVENT_COMPUTE);
-    coro->resume();
-    coro->sched()->post_coroutine(coro, true);
+    coro->SetEvent(EVENT_COMPUTE);
+    coro->Resume();
+    coro->GetScheduler()->PostCoroutine(coro, true);
   }
 }
 

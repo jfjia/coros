@@ -69,8 +69,6 @@ enum {
 class Scheduler;
 class Coroutine;
 
-typedef std::function<void()> Callback;
-
 class Socket {
   friend class Scheduler;
 
@@ -78,17 +76,22 @@ public:
   Socket();
   Socket(uv_os_sock_t s);
 
-  void set_deadline(int timeout_secs);
-  int get_deadline();
-  bool listen_by_host(const std::string& host, int port, int backlog = 1024);
-  bool listen_by_ip(const std::string& ip, int port, int backlog = 1024);
-  void close();
-  bool connect_host(const std::string& host, int port);
-  bool connect_ip(const std::string& ip, int port);
-  int read_some(char* buf, int len);
-  int write_some(const char* buf, int len);
-  uv_os_sock_t accept();
-  Event wait(int flags);
+  void Close();
+
+  void SetDeadline(int timeout_secs);
+  int GetDeadline();
+
+  bool ListenByHost(const std::string& host, int port, int backlog = 1024);
+  bool ListenByIp(const std::string& ip, int port, int backlog = 1024);
+  uv_os_sock_t Accept();
+
+  bool ConnectHost(const std::string& host, int port);
+  bool ConnectIp(const std::string& ip, int port);
+
+  int ReadSome(char* buf, int len);
+  int WriteSome(const char* buf, int len);
+
+  Event Wait(int flags);
 
 protected:
   uv_os_sock_t s_;
@@ -99,37 +102,39 @@ protected:
 
 class Coroutine {
 public:
-  static Coroutine* self();
+  static Coroutine* Self();
 
-  bool create(Scheduler* sched, const Callback& fn, const Callback& exit_fn);
-  void destroy();
+  bool Create(Scheduler* sched,
+              const std::function<void()>& fn,
+              const std::function<void()>& exit_fn);
+  void Destroy();
 
-  void resume();
-  void yield(State new_state);
+  void Resume();
+  void Yield(State new_state);
 
-  void join(Coroutine* coro);
-  void cancel();
-  void set_event(Event new_event);
+  void Join(Coroutine* coro);
+  void Cancel();
+  void SetEvent(Event new_event);
 
-  State state() const;
-  Event event() const;
-  Scheduler* sched() const;
-  std::size_t id() const;
+  State GetState() const;
+  Event GetEvent() const;
+  Scheduler* GetScheduler() const;
+  std::size_t GetId() const;
 
-  void nice();
-  void wait(long millisecs);
-  void begin_compute();
-  void end_compute();
+  void Nice();
+  void Wait(long millisecs);
+  void BeginCompute();
+  void EndCompute();
 
-  void set_timeout(int seconds);
-  void check_timeout();
+  void SetTimeout(int seconds);
+  void CheckTimeout();
 
 private:
   context::fcontext_t ctx_{ nullptr };
   context::fcontext_t caller_{ nullptr };
   Stack stack_;
-  Callback fn_;
-  Callback exit_fn_;
+  std::function<void()> fn_;
+  std::function<void()> exit_fn_;
   Scheduler* sched_{ nullptr };
   State state_{ STATE_READY };
   Event event_;
@@ -142,22 +147,22 @@ typedef std::vector<Coroutine* > CoroutineList;
 
 class Condition {
 public:
-  void wait(Coroutine* coro) {
+  void Wait(Coroutine* coro) {
     waiting_.push_back(coro);
-    coro->yield(STATE_WAITING);
+    coro->Yield(STATE_WAITING);
   }
 
-  void notify_one() {
+  void NotifyOne() {
     if (waiting_.size() > 0) {
       Coroutine* coro = waiting_.back();
       waiting_.pop_back();
-      coro->set_event(EVENT_COND);
+      coro->SetEvent(EVENT_COND);
     }
   }
 
-  void notify_all() {
+  void NotifyAll() {
     for (auto it = waiting_.begin(); it != waiting_.end(); it++) {
-      (*it)->set_event(EVENT_COND);
+      (*it)->SetEvent(EVENT_COND);
     }
     waiting_.clear();
   }
@@ -168,32 +173,32 @@ protected:
 
 class Scheduler {
 public:
-  static Scheduler* get();
+  static Scheduler* Get();
 
   Scheduler(bool is_default);
   ~Scheduler();
 
-  std::size_t next_coro_id();
-  Stack allocate_stack();
-  void deallocate_stack(Stack& stack);
+  std::size_t NextId();
+  Stack AllocateStack();
+  void DeallocateStack(Stack& stack);
 
-  void add_coroutine(Coroutine* coro); // for current thread
-  void post_coroutine(Coroutine* coro, bool is_compute = false); // for different thread
-  void wait(Coroutine* coro, long millisecs);
-  void wait(Coroutine* coro, Socket& s, int flags);
-  void begin_compute(Coroutine* coro);
-  void run();
+  void AddCoroutine(Coroutine* coro); // for current thread
+  void PostCoroutine(Coroutine* coro, bool is_compute = false); // for different thread
+  void Wait(Coroutine* coro, long millisecs);
+  void Wait(Coroutine* coro, Socket& s, int flags);
+  void BeginCompute(Coroutine* coro);
+  void Run();
 
-  Coroutine* current() const;
-  uv_loop_t* loop();
+  Coroutine* GetCurrent() const;
+  uv_loop_t* GetLoop();
 
 protected:
-  void pre();
-  void check();
-  void async();
-  void sweep();
-  void run_coros();
-  void cleanup(CoroutineList& cl);
+  void Pre();
+  void Check();
+  void Async();
+  void Sweep();
+  void RunCoros();
+  void Cleanup(CoroutineList& cl);
 
 protected:
   static std::size_t page_size_;

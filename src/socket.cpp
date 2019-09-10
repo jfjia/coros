@@ -7,7 +7,7 @@
 #include <memory.h>
 
 namespace coros {
-inline uv_os_sock_t set_no_sigpipe(uv_os_sock_t s) {
+inline uv_os_sock_t SetNoSigPipe(uv_os_sock_t s) {
 #ifdef SO_NOSIGPIPE
   if (s != BAD_SOCKET) {
     int no_sigpipe = 1;
@@ -17,7 +17,7 @@ inline uv_os_sock_t set_no_sigpipe(uv_os_sock_t s) {
   return s;
 }
 
-inline uv_os_sock_t set_nonblocking(uv_os_sock_t s) {
+inline uv_os_sock_t SetNonblocking(uv_os_sock_t s) {
   if (s != BAD_SOCKET) {
 #ifdef _WIN32
 //TODO: libuv will set non-blocking
@@ -30,16 +30,16 @@ inline uv_os_sock_t set_nonblocking(uv_os_sock_t s) {
   return s;
 }
 
-inline uv_os_sock_t create_socket(int domain, int type, int protocol) {
+inline uv_os_sock_t CreateSocket(int domain, int type, int protocol) {
   int flags = 0;
 #if defined(SOCK_CLOEXEC) && defined(SOCK_NONBLOCK)
   flags = SOCK_CLOEXEC | SOCK_NONBLOCK;
 #endif
-  return set_nonblocking(set_no_sigpipe(socket(domain, type | flags, protocol)));
+  return SetNonblocking(SetNoSigPipe(socket(domain, type | flags, protocol)));
 }
 
-inline uv_os_sock_t create_listen_socket(int domain, int type, int protocol) {
-  uv_os_sock_t s = create_socket(domain, type, protocol);
+inline uv_os_sock_t CreateListenSocket(int domain, int type, int protocol) {
+  uv_os_sock_t s = CreateSocket(domain, type, protocol);
   if (s != BAD_SOCKET) {
 #ifdef SO_REUSEPORT
     {
@@ -61,7 +61,7 @@ inline uv_os_sock_t create_listen_socket(int domain, int type, int protocol) {
   return s;
 }
 
-inline uv_os_sock_t close_socket(uv_os_sock_t s) {
+inline uv_os_sock_t CloseSocket(uv_os_sock_t s) {
   if (s != BAD_SOCKET) {
 #if defined(_WIN32)
     ::closesocket(s);
@@ -72,7 +72,7 @@ inline uv_os_sock_t close_socket(uv_os_sock_t s) {
   return BAD_SOCKET;
 }
 
-inline bool would_block() {
+inline bool WouldBlock() {
 #ifdef _WIN32
   return WSAGetLastError() == WSAEWOULDBLOCK;
 #else
@@ -80,7 +80,7 @@ inline bool would_block() {
 #endif
 }
 
-bool Socket::listen_by_host(const std::string& host, int port, int backlog) {
+bool Socket::ListenByHost(const std::string& host, int port, int backlog) {
   struct addrinfo hints, *result;
   memset(&hints, 0, sizeof(struct addrinfo));
 
@@ -91,9 +91,9 @@ bool Socket::listen_by_host(const std::string& host, int port, int backlog) {
   char port_string[16];
   sprintf(port_string, "%d", port);
 
-  coro_->begin_compute();
+  coro_->BeginCompute();
   int rc = ::getaddrinfo(host.c_str(), port_string, &hints, &result);
-  coro_->end_compute();
+  coro_->EndCompute();
   if (rc != 0) {
     return false;
   }
@@ -101,14 +101,14 @@ bool Socket::listen_by_host(const std::string& host, int port, int backlog) {
   struct addrinfo* addr;
   for (struct addrinfo* a = result; a && s_ == BAD_SOCKET; a = a->ai_next) {
     if (a->ai_family == AF_INET6) {
-      s_ = create_listen_socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+      s_ = CreateListenSocket(a->ai_family, a->ai_socktype, a->ai_protocol);
       addr = a;
     }
   }
 
   for (struct addrinfo* a = result; a && s_ == BAD_SOCKET; a = a->ai_next) {
     if (a->ai_family == AF_INET) {
-      s_ = create_listen_socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+      s_ = CreateListenSocket(a->ai_family, a->ai_socktype, a->ai_protocol);
       addr = a;
     }
   }
@@ -119,18 +119,18 @@ bool Socket::listen_by_host(const std::string& host, int port, int backlog) {
   }
 
   if (bind(s_, addr->ai_addr, addr->ai_addrlen) || listen(s_, backlog)) {
-    s_ = close_socket(s_);
+    s_ = CloseSocket(s_);
     freeaddrinfo(result);
     return false;
   }
 
   freeaddrinfo(result);
-  uv_poll_init_socket(coro_->sched()->loop(), &poll_, s_);
+  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
   return true;
 }
 
-bool Socket::listen_by_ip(const std::string& ip, int port, int backlog) {
-  s_ = create_listen_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+bool Socket::ListenByIp(const std::string& ip, int port, int backlog) {
+  s_ = CreateListenSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (s_ == BAD_SOCKET) {
     return false;
   }
@@ -141,25 +141,25 @@ bool Socket::listen_by_ip(const std::string& ip, int port, int backlog) {
   addr.sin_port = htons(port);
 
   if (bind(s_, (struct sockaddr*)&addr, sizeof addr) || listen(s_, backlog)) {
-    s_ = close_socket(s_);
+    s_ = CloseSocket(s_);
     return false;
   }
 
-  uv_poll_init_socket(coro_->sched()->loop(), &poll_, s_);
+  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
   return true;
 }
 
-void Socket::close() {
+void Socket::Close() {
   if (s_ != BAD_SOCKET) {
     uv_close(reinterpret_cast<uv_handle_t*>(&poll_), [](uv_handle_t* h) {
-      ((Socket*)h->data)->coro_->set_event(EVENT_CONT);
+      ((Socket*)h->data)->coro_->SetEvent(EVENT_CONT);
     });
-    coro_->yield(STATE_WAITING);
-    s_ = close_socket(s_);
+    coro_->Yield(STATE_WAITING);
+    s_ = CloseSocket(s_);
   }
 }
 
-bool Socket::connect_host(const std::string& host, int port) {
+bool Socket::ConnectHost(const std::string& host, int port) {
   struct addrinfo hints, *result;
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
@@ -168,14 +168,14 @@ bool Socket::connect_host(const std::string& host, int port) {
   char port_string[16];
   sprintf(port_string, "%d", port);
 
-  coro_->begin_compute();
+  coro_->BeginCompute();
   int rc = getaddrinfo(host.c_str(), port_string, &hints, &result);
-  coro_->end_compute();
+  coro_->EndCompute();
   if (rc != 0) {
     return false;
   }
 
-  s_ = create_socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+  s_ = CreateSocket(result->ai_family, result->ai_socktype, result->ai_protocol);
   if (s_ == BAD_SOCKET) {
     freeaddrinfo(result);
     return false;
@@ -187,23 +187,23 @@ bool Socket::connect_host(const std::string& host, int port) {
     return true;
   }
 
-  if (!would_block()) {
-    s_ = close_socket(s_);
+  if (!WouldBlock()) {
+    s_ = CloseSocket(s_);
     return false;
   }
 
-  Event ev = wait(WAIT_WRITABLE);
+  Event ev = Wait(WAIT_WRITABLE);
   if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
-    s_ = close_socket(s_);
+    s_ = CloseSocket(s_);
     return false;
   }
 
-  uv_poll_init_socket(coro_->sched()->loop(), &poll_, s_);
+  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
   return true;
 }
 
-bool Socket::connect_ip(const std::string& ip, int port) {
-  s_ = create_listen_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+bool Socket::ConnectIp(const std::string& ip, int port) {
+  s_ = CreateSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (s_ == BAD_SOCKET) {
     return false;
   }
@@ -218,33 +218,33 @@ bool Socket::connect_ip(const std::string& ip, int port) {
     return true;
   }
 
-  if (!would_block()) {
-    s_ = close_socket(s_);
+  if (!WouldBlock()) {
+    s_ = CloseSocket(s_);
     return false;
   }
 
-  Event ev = wait(WAIT_WRITABLE);
+  Event ev = Wait(WAIT_WRITABLE);
   if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
-    s_ = close_socket(s_);
+    s_ = CloseSocket(s_);
     return false;
   }
 
-  uv_poll_init_socket(coro_->sched()->loop(), &poll_, s_);
+  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
   return true;
 }
 
-int Socket::read_some(char* data, int len) {
+int Socket::ReadSome(char* data, int len) {
   for (;;) {
     int rc = ::recv(s_, data, len, 0);
     malog_debug("::recv(%d)=%d", s_, rc);
     if (rc >= 0) {
       return rc;
     }
-    if (!would_block()) {
+    if (!WouldBlock()) {
       malog_error("::recv() failed and cannot retry");
       return rc;
     }
-    Event ev = wait(WAIT_READABLE);
+    Event ev = Wait(WAIT_READABLE);
     malog_debug("wait(WAIT_READABLE)=%d", ev);
     if (ev != EVENT_READABLE && ev != EVENT_RWABLE) {
       return -1;
@@ -252,7 +252,7 @@ int Socket::read_some(char* data, int len) {
   }
 }
 
-int Socket::write_some(const char* data, int len) {
+int Socket::WriteSome(const char* data, int len) {
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif
@@ -262,11 +262,11 @@ int Socket::write_some(const char* data, int len) {
     if (rc > 0) {
       return rc;
     }
-    if (!would_block()) {
+    if (!WouldBlock()) {
       malog_error("::send() failed and cannot retry");
       return rc;
     }
-    Event ev = wait(WAIT_WRITABLE);
+    Event ev = Wait(WAIT_WRITABLE);
     malog_debug("wait(WAIT_WRITABLE)=%d", ev);
     if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
       return -1;
@@ -274,7 +274,7 @@ int Socket::write_some(const char* data, int len) {
   }
 }
 
-uv_os_sock_t Socket::accept() {
+uv_os_sock_t Socket::Accept() {
   for (;;) {
     struct sockaddr_storage mem;
     socklen_t len = sizeof(mem);
@@ -285,12 +285,12 @@ uv_os_sock_t Socket::accept() {
     new_s = ::accept(s_, (struct sockaddr*)&mem, &len);
 #endif
     if (new_s != BAD_SOCKET) {
-      return set_nonblocking(set_no_sigpipe(new_s));
+      return SetNonblocking(SetNoSigPipe(new_s));
     }
-    if (!would_block()) {
+    if (!WouldBlock()) {
       return -1;
     }
-    Event ev = wait(WAIT_READABLE);
+    Event ev = Wait(WAIT_READABLE);
     if (ev != EVENT_READABLE) {
       return -1;
     }
