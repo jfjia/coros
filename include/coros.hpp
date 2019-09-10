@@ -147,25 +147,10 @@ typedef std::vector<Coroutine* > CoroutineList;
 
 class Condition {
 public:
-  void Wait(Coroutine* coro) {
-    waiting_.push_back(coro);
-    coro->Yield(STATE_WAITING);
-  }
+  void Wait(Coroutine* coro);
 
-  void NotifyOne() {
-    if (waiting_.size() > 0) {
-      Coroutine* coro = waiting_.back();
-      waiting_.pop_back();
-      coro->SetEvent(EVENT_COND);
-    }
-  }
-
-  void NotifyAll() {
-    for (auto it = waiting_.begin(); it != waiting_.end(); it++) {
-      (*it)->SetEvent(EVENT_COND);
-    }
-    waiting_.clear();
-  }
+  void NotifyOne();
+  void NotifyAll();
 
 protected:
   CoroutineList waiting_;

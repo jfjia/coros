@@ -110,6 +110,26 @@ inline void Coroutine::CheckTimeout() {
   }
 }
 
+inline void Condition::Wait(Coroutine* coro) {
+  waiting_.push_back(coro);
+  coro->Yield(STATE_WAITING);
+}
+
+inline void Condition::NotifyOne() {
+  if (waiting_.size() > 0) {
+    Coroutine* coro = waiting_.back();
+    waiting_.pop_back();
+    coro->SetEvent(EVENT_COND);
+  }
+}
+
+inline void Condition::NotifyAll() {
+  for (auto it = waiting_.begin(); it != waiting_.end(); it++) {
+    (*it)->SetEvent(EVENT_COND);
+  }
+  waiting_.clear();
+}
+
 inline Coroutine* Scheduler::GetCurrent() const {
   return current_;
 }
