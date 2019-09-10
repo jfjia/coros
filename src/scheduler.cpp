@@ -3,6 +3,9 @@
 #include <cassert>
 #include <cmath>
 #include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #if !defined(_WIN32)
 #include <unistd.h>
 #include <signal.h>
@@ -16,8 +19,8 @@
 namespace coros {
 
 static const int SWEEP_INTERVAL = 1000;
-
 static const int RECV_BUFFER_SIZE = 64 * 1024;
+static const int COMPUTE_THREADS_N = 2;
 
 std::size_t Scheduler::page_size_;
 std::size_t Scheduler::min_stack_size_;
@@ -25,6 +28,25 @@ std::size_t Scheduler::max_stack_size_;
 std::size_t Scheduler::default_stack_size_;
 
 thread_local Scheduler* local_sched = nullptr;
+
+class ComputeThreads {
+public:
+    void start();
+    void stop();
+    void add(Coroutine* coro);
+
+protected:
+    void consume();
+
+protected:
+    bool stop_{ false };
+    std::vector<std::thread> threads_;
+    std::mutex lock_;
+    std::condition_variable cond_;
+    CoroutineList pending_;
+};
+
+ComputeThreads compute_threads;
 
 Scheduler::Scheduler(bool is_default)
     : is_default_(is_default) {
@@ -57,6 +79,7 @@ Scheduler::Scheduler(bool is_default)
         max_stack_size_ = (size_t)limit.rlim_max;
 #endif
         loop_ptr_ = uv_default_loop();
+        compute_threads.start();
     } else {
         loop_ptr_ = &loop_;
         uv_loop_init(loop_ptr_);
@@ -114,10 +137,9 @@ void Scheduler::check() {
 }
 
 void Scheduler::async() {
-    lock_.lock();
+    std::lock_guard<std::mutex> l(lock_);
     ready_.insert(ready_.end(), posted_.begin(), posted_.end());
     posted_.clear();
-    lock_.unlock();
 }
 
 void Scheduler::sweep() {
@@ -136,6 +158,7 @@ void Scheduler::sweep() {
 Scheduler::~Scheduler() {
     uv_loop_close(loop_ptr_);
     if (is_default_) {
+        compute_threads.stop();
 #if defined(_WIN32)
         WSACleanup();
 #endif
@@ -257,16 +280,19 @@ void Scheduler::cleanup(CoroutineList& cl) {
     cl.clear();
 }
 
-void Scheduler::post_coroutine(Coroutine* coro) {
+void Scheduler::post_coroutine(Coroutine* coro, bool is_compute) {
     {
         std::lock_guard<std::mutex> l(lock_);
+        if (is_compute) {
+            outstanding_ --;
+        }
         posted_.push_back(coro);
     }
     uv_async_send(&async_);
 }
 
 void Scheduler::begin_compute(Coroutine* coro) {
-    uv_work_t c;
+    /*uv_work_t c;
     c.data = (void*)coro;
     uv_queue_work(loop_ptr_, &c, [](uv_work_t* w) {
         ((Coroutine*)w->data)->set_event(EVENT_COMPUTE);
@@ -276,6 +302,8 @@ void Scheduler::begin_compute(Coroutine* coro) {
         ((Coroutine*)w->data)->sched()->add_coroutine((Coroutine*)w->data);
         ((Coroutine*)w->data)->sched()->outstanding_ --;
     });
+    */
+    compute_threads.add(coro);
     coro->yield(STATE_COMPUTE);
 }
 
@@ -321,6 +349,59 @@ void Scheduler::deallocate_stack(Stack& stack) {
 
 Scheduler* Scheduler::get() {
     return local_sched;
+}
+
+void ComputeThreads::start() {
+    for (int i = 0; i < COMPUTE_THREADS_N; i++) {
+        threads_.emplace_back(std::bind(&ComputeThreads::consume, this));
+    }
+}
+
+void ComputeThreads::stop() {
+    {
+        std::lock_guard<std::mutex> l(lock_);
+        stop_ = true;
+        cond_.notify_all();
+    }
+    for (std::size_t i = 0; i < threads_.size(); i++) {
+        if (threads_[i].joinable()) {
+            threads_[i].join();
+        }
+    }
+    threads_.clear();
+    for (auto i : pending_) {
+        i->set_event(EVENT_CANCEL);
+        i->resume();
+        i->destroy();
+    }
+    pending_.clear();
+}
+
+inline void ComputeThreads::add(Coroutine* coro) {
+    std::lock_guard<std::mutex> l(lock_);
+    pending_.push_back(coro);
+    cond_.notify_all();
+}
+
+void ComputeThreads::consume() {
+    Coroutine* coro;
+    while (true) {
+        {
+            std::unique_lock<std::mutex> l(lock_);
+            if (stop_) {
+                break;
+            }
+            if (pending_.size() == 0) {
+                cond_.wait(l);
+                continue;
+            }
+            coro = pending_.back();
+            pending_.pop_back();
+        }
+        coro->set_event(EVENT_COMPUTE);
+        coro->resume();
+        coro->sched()->post_coroutine(coro, true);
+    }
 }
 
 }

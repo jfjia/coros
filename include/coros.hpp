@@ -176,7 +176,7 @@ public:
     void deallocate_stack(Stack& stack);
 
     void add_coroutine(Coroutine* coro); // for current thread
-    void post_coroutine(Coroutine* coro); // for different thread
+    void post_coroutine(Coroutine* coro, bool is_compute = false); // for different thread
     void wait(Coroutine* coro, long millisecs);
     void wait(Coroutine* coro, Socket& s, int flags);
     void begin_compute(Coroutine* coro);
