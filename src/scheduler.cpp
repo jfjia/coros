@@ -78,36 +78,22 @@ Scheduler::Scheduler(bool is_default)
         getrlimit(RLIMIT_STACK, &limit);
         max_stack_size_ = (size_t)limit.rlim_max;
 #endif
-        loop_ptr_ = uv_default_loop();
+        loop_.init(true);
         compute_threads.start();
     } else {
-        loop_ptr_ = &loop_;
-        uv_loop_init(loop_ptr_);
-        loop_ptr_->data = this;
+        loop_.init(false);
     }
 
-    pre_.data = (void*)this;
-    uv_prepare_init(loop_ptr_, &pre_);
-    uv_prepare_start(&pre_, [](uv_prepare_t* w) {
-        ((Scheduler*)w->data)->pre();
-    });
+    pre_.init(loop_);
+    pre_.start(std::bind(&Scheduler::pre, this));
 
-    check_.data = (void*)this;
-    uv_check_init(loop_ptr_, &check_);
-    uv_check_start(&check_, [](uv_check_t* w) {
-        ((Scheduler*)w->data)->check();
-    });
+    check_.init(loop_);
+    check_.start(std::bind(&Scheduler::check, this));
 
-    async_.data = (void*)this;
-    uv_async_init(loop_ptr_, &async_, [](uv_async_t* w) {
-        ((Scheduler*)w->data)->async();
-    });
+    async_.init(loop_, std::bind(&Scheduler::async, this));
 
-    sweep_timer_.data = (void*)this;
-    uv_timer_init(loop_ptr_, &sweep_timer_);
-    uv_timer_start(&sweep_timer_, [](uv_timer_t* w) {
-        ((Scheduler*)w->data)->sweep();
-    }, SWEEP_INTERVAL, SWEEP_INTERVAL);
+    sweep_timer_.init(loop_);
+    sweep_timer_.start(std::bind(&Scheduler::sweep, this), SWEEP_INTERVAL, SWEEP_INTERVAL);
 
     local_sched = this;
 }
@@ -159,7 +145,7 @@ void Scheduler::sweep() {
 }
 
 Scheduler::~Scheduler() {
-    uv_loop_close(loop_ptr_);
+    uv_loop_close(loop_.value());
     if (is_default_) {
         compute_threads.stop();
 #if defined(_WIN32)
@@ -191,17 +177,17 @@ void Scheduler::add_coroutine(Coroutine* coro) {
 }
 
 void Scheduler::run() {
-    uv_run(loop_ptr_, UV_RUN_DEFAULT);
+    loop_.run();
     cleanup(ready_);
     cleanup(waiting_);
-    uv_timer_stop(&sweep_timer_);
-    uv_check_stop(&check_);
-    uv_prepare_stop(&pre_);
-    uv_close(reinterpret_cast<uv_handle_t*>(&sweep_timer_), [](uv_handle_t* h) {});
-    uv_close(reinterpret_cast<uv_handle_t*>(&async_), [](uv_handle_t* h) {});
-    uv_close(reinterpret_cast<uv_handle_t*>(&check_), [](uv_handle_t* h) {});
-    uv_close(reinterpret_cast<uv_handle_t*>(&pre_), [](uv_handle_t* h) {});
-    uv_run(loop_ptr_, UV_RUN_NOWAIT);
+    sweep_timer_.stop();
+    check_.stop();
+    pre_.stop();
+    sweep_timer_.close();
+    async_.close();
+    check_.close();
+    pre_.close();
+    loop_.runNowait();
 }
 
 void Scheduler::run_coros() {
@@ -228,14 +214,14 @@ void Scheduler::run_coros() {
         }
     }
     if (waiting_.size() == 0 && outstanding_ == 0) {
-        uv_stop(loop_ptr_);
+        uv_stop(loop_.value());
     }
 }
 
 void Scheduler::wait(Coroutine* coro, long millisecs) {
     uv_timer_t timer;
     timer.data = (void*)coro;
-    uv_timer_init(loop_ptr_, &timer);
+    uv_timer_init(loop_.value(), &timer);
     uv_timer_start(&timer, [](uv_timer_t* w) {
         uv_timer_stop(w);
         uv_close(reinterpret_cast<uv_handle_t*>(w), [](uv_handle_t* w) {
@@ -293,13 +279,13 @@ void Scheduler::post_coroutine(Coroutine* coro, bool is_compute) {
             posted_.push_back(coro);
         }
     }
-    uv_async_send(&async_);
+    async_.send();
 }
 
 void Scheduler::begin_compute(Coroutine* coro) {
     /*uv_work_t c;
     c.data = (void*)coro;
-    uv_queue_work(loop_ptr_, &c, [](uv_work_t* w) {
+    uv_queue_work(loop_.value(), &c, [](uv_work_t* w) {
         ((Coroutine*)w->data)->set_event(EVENT_COMPUTE);
         ((Coroutine*)w->data)->resume();
     }, [](uv_work_t* w, int status) {

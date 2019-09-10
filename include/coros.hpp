@@ -8,6 +8,8 @@
 #include <mutex>
 #include <vector>
 
+#include "uvpp.hpp"
+
 #if defined(_WIN32)
 #define BAD_SOCKET (uintptr_t)(~0)
 #else
@@ -183,7 +185,7 @@ public:
     void run();
 
     Coroutine* current() const;
-    uv_loop_t* loop() const;
+    uv_loop_t* loop();
 
 protected:
     void pre();
@@ -199,12 +201,11 @@ protected:
     static std::size_t max_stack_size_;
     static std::size_t default_stack_size_;
     bool is_default_;
-    uv_loop_t loop_;
-    uv_loop_t* loop_ptr_{ nullptr };
-    uv_prepare_t pre_;
-    uv_check_t check_;
-    uv_async_t async_;
-    uv_timer_t sweep_timer_;
+    uvpp::Loop loop_;
+    uvpp::Prepare pre_;
+    uvpp::Check check_;
+    uvpp::Async async_;
+    uvpp::Timer sweep_timer_;
     Coroutine* current_{ nullptr };
     CoroutineList ready_;
     CoroutineList waiting_;

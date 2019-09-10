@@ -114,7 +114,7 @@ inline Coroutine* Scheduler::current() const {
     return current_;
 }
 
-inline uv_loop_t* Scheduler::loop() const {
-    return loop_ptr_;
+inline uv_loop_t* Scheduler::loop() {
+    return loop_.value();
 }
 
