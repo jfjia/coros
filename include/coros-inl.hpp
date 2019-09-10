@@ -135,6 +135,6 @@ inline Coroutine* Scheduler::GetCurrent() const {
 }
 
 inline uv_loop_t* Scheduler::GetLoop() {
-  return loop_.value();
+  return loop_ptr_;
 }
 
