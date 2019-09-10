@@ -11,125 +11,125 @@ typedef std::function<void(int)> IntCb;
 
 class Loop {
 public:
-    ~Loop();
+  ~Loop();
 
-    int init(bool is_default = false);
-    void close();
+  int init(bool is_default = false);
+  void close();
 
-    int run();
-    int runOnce();
-    int runNowait();
+  int run();
+  int runOnce();
+  int runNowait();
 
-    void stop();
+  void stop();
 
-    uint64_t now() const;
-    void updateTime();
+  uint64_t now() const;
+  void updateTime();
 
-    bool alive() const;
+  bool alive() const;
 
-    uv_loop_t* value();
+  uv_loop_t* value();
 
 private:
-    uv_loop_t loop_;
-    uv_loop_t* loop_ptr_;
+  uv_loop_t loop_;
+  uv_loop_t* loop_ptr_;
 };
 
 template<typename T>
 class Handle {
 public:
-    bool isActive();
-    bool isClosing();
-    void ref();
-    void unref();
-    bool hasRef();
-    Loop& loop();
-    void close();
-    void close(const VoidCb& handler);
+  bool isActive();
+  bool isClosing();
+  void ref();
+  void unref();
+  bool hasRef();
+  Loop& loop();
+  void close();
+  void close(const VoidCb& handler);
 
 protected:
-    T handle_;
-    VoidCb closeHandler_ = []() {};
+  T handle_;
+  VoidCb closeHandler_ = []() {};
 };
 
 class Prepare : public Handle<uv_prepare_t> {
 public:
-    Prepare();
+  Prepare();
 
-    int init(Loop& loop);
-    int start(const VoidCb& handler);
-    int stop();
+  int init(Loop& loop);
+  int start(const VoidCb& handler);
+  int stop();
 
 private:
-    VoidCb startHandler_ = []() {};
+  VoidCb startHandler_ = []() {};
 };
 
 class Check : public Handle<uv_check_t> {
 public:
-    Check();
+  Check();
 
-    int init(Loop& loop);
-    int start(const VoidCb& handler);
-    int stop();
+  int init(Loop& loop);
+  int start(const VoidCb& handler);
+  int stop();
 
 private:
-    VoidCb startHandler_ = []() {};
+  VoidCb startHandler_ = []() {};
 };
 
 class Async : public Handle<uv_async_t> {
 public:
-    Async();
+  Async();
 
-    int init(Loop& loop, const VoidCb& handler);
-    int send();
+  int init(Loop& loop, const VoidCb& handler);
+  int send();
 
 private:
-    VoidCb callbackHandler_ = []() {};
+  VoidCb callbackHandler_ = []() {};
 };
 
 class Poll : public Handle<uv_poll_t> {
 public:
-    Poll();
+  Poll();
 
-    int init(Loop& loop, int fd);
-    int initSocket(Loop& loop, uv_os_sock_t socket);
-    int start();
-    int stop();
+  int init(Loop& loop, int fd);
+  int initSocket(Loop& loop, uv_os_sock_t socket);
+  int start();
+  int stop();
 
-    int disableAll();
+  int disableAll();
 
-    void onReadable(const IntCb& handler);
-    int disableReadable();
-    void onWritable(const IntCb& handler);
-    int disableWritable();
-    void onDisconnect(const IntCb& handler);
-    int disableDisconnect();
-    void onPrioritized(const IntCb& handler);
-    int disablePrioritized();
-
-private:
-    int disable(int event);
+  void onReadable(const IntCb& handler);
+  int disableReadable();
+  void onWritable(const IntCb& handler);
+  int disableWritable();
+  void onDisconnect(const IntCb& handler);
+  int disableDisconnect();
+  void onPrioritized(const IntCb& handler);
+  int disablePrioritized();
 
 private:
-    int events_{ 0 };
-    IntCb readableHandler_ = [](int ec) {};
-    IntCb writableHandler_ = [](int ec) {};
-    IntCb disconnectHandler_ = [](int ec) {};
-    IntCb prioritizedHandler_ = [](int ec) {};
+  int disable(int event);
+
+private:
+  int events_{ 0 };
+  IntCb readableHandler_ = [](int ec) {};
+  IntCb writableHandler_ = [](int ec) {};
+  IntCb disconnectHandler_ = [](int ec) {};
+  IntCb prioritizedHandler_ = [](int ec) {};
 };
 
 class Timer : public Handle<uv_timer_t> {
 public:
-    Timer();
+  Timer();
 
-    int init(Loop& loop);
-    int start(const VoidCb& handler, uint64_t timeout, uint64_t repeat);
-    int stop();
-    int again();
-    void setRepeat(uint64_t repeat);
-    uint64_t getRepeat() const;
+  int init(Loop& loop);
+  int start(const VoidCb& handler, uint64_t timeout, uint64_t repeat);
+  int stop();
+  int again();
+  void setRepeat(uint64_t repeat);
+  uint64_t getRepeat() const;
 
 private:
-    VoidCb startHandler_ = []() {};
+  VoidCb startHandler_ = []() {};
 };
 
 #include "uvpp-inl.hpp"
