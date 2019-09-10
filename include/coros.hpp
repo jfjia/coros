@@ -211,6 +211,7 @@ protected:
     std::mutex lock_;
     int outstanding_{ 0 };
     CoroutineList posted_;
+    CoroutineList compute_done_;
 };
 
 #include "coros-inl.hpp"

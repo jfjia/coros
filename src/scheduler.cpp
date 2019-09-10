@@ -140,6 +140,9 @@ void Scheduler::async() {
     std::lock_guard<std::mutex> l(lock_);
     ready_.insert(ready_.end(), posted_.begin(), posted_.end());
     posted_.clear();
+    ready_.insert(ready_.end(), compute_done_.begin(), compute_done_.end());
+    outstanding_ -= compute_done_.size();
+    compute_done_.clear();
 }
 
 void Scheduler::sweep() {
@@ -219,6 +222,7 @@ void Scheduler::run_coros() {
             } else if (c->state() == STATE_COMPUTE) {
                 fast_del_vector_item<Coroutine*>(ready_, i);
                 outstanding_ ++;
+                compute_threads.add(c);
             }
             i++;
         }
@@ -284,9 +288,10 @@ void Scheduler::post_coroutine(Coroutine* coro, bool is_compute) {
     {
         std::lock_guard<std::mutex> l(lock_);
         if (is_compute) {
-            outstanding_ --;
+            compute_done_.push_back(coro);
+        } else {
+            posted_.push_back(coro);
         }
-        posted_.push_back(coro);
     }
     uv_async_send(&async_);
 }
@@ -303,7 +308,6 @@ void Scheduler::begin_compute(Coroutine* coro) {
         ((Coroutine*)w->data)->sched()->outstanding_ --;
     });
     */
-    compute_threads.add(coro);
     coro->yield(STATE_COMPUTE);
 }
 
