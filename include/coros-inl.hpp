@@ -37,7 +37,7 @@ inline void Coroutine::Join(Coroutine* coro) {
     return;
   }
   coro->joined_ = this;
-  Yield(STATE_WAITING);
+  Suspend(STATE_WAITING);
 }
 
 inline void Coroutine::Cancel() {
@@ -66,7 +66,7 @@ inline void Coroutine::Resume() {
   ctx_ = context::jump_fcontext(ctx_, (void*)this).fctx;
 }
 
-inline void Coroutine::Yield(State new_state) {
+inline void Coroutine::Suspend(State new_state) {
   state_ = new_state;
   caller_ = context::jump_fcontext(caller_, (void*)this).fctx;
   if (event_ == EVENT_CANCEL) {
@@ -83,7 +83,7 @@ inline std::size_t Coroutine::GetId() const {
 }
 
 inline void Coroutine::Nice() {
-  Yield(STATE_READY);
+  Suspend(STATE_READY);
 }
 
 inline void Coroutine::BeginCompute() {
@@ -91,7 +91,7 @@ inline void Coroutine::BeginCompute() {
 }
 
 inline void Coroutine::EndCompute() {
-  Yield(STATE_READY);
+  Suspend(STATE_READY);
 }
 
 inline void Coroutine::SetTimeout(int seconds) {
@@ -112,7 +112,7 @@ inline void Coroutine::CheckTimeout() {
 
 inline void Condition::Wait(Coroutine* coro) {
   waiting_.push_back(coro);
-  coro->Yield(STATE_WAITING);
+  coro->Suspend(STATE_WAITING);
 }
 
 inline void Condition::NotifyOne() {

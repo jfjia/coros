@@ -153,7 +153,7 @@ void Socket::Close() {
     uv_close(reinterpret_cast<uv_handle_t*>(&poll_), [](uv_handle_t* h) {
       ((Socket*)h->data)->coro_->SetEvent(EVENT_CONT);
     });
-    coro_->Yield(STATE_WAITING);
+    coro_->Suspend(STATE_WAITING);
     s_ = CloseSocket(s_);
   }
 }

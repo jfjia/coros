@@ -72,7 +72,7 @@ protected:
 };
 
 int main(int argc, char** argv) {
-  MALOG_OPEN_STDIO(1, 0, true);
+  MALOG_OPEN_STDIO(1, true);
   coros::Scheduler sched(true);
   Listener l;
   l.Start();

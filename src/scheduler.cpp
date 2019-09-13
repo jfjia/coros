@@ -262,7 +262,7 @@ void Scheduler::Wait(Coroutine* coro, long millisecs) {
       (reinterpret_cast<Coroutine*>(handle->data))->SetEvent(EVENT_TIMEOUT);
     });
   }, millisecs, 0);
-  coro->Yield(STATE_WAITING);
+  coro->Suspend(STATE_WAITING);
 }
 
 void Scheduler::Wait(Coroutine* coro, Socket& s, int flags) {
@@ -290,7 +290,7 @@ void Scheduler::Wait(Coroutine* coro, Socket& s, int flags) {
     }
   });
   s.coro_->SetTimeout(s.GetDeadline());
-  s.coro_->Yield(STATE_WAITING);
+  s.coro_->Suspend(STATE_WAITING);
   uv_poll_stop(&s.poll_);
 }
 
@@ -328,7 +328,7 @@ void Scheduler::BeginCompute(Coroutine* coro) {
     ((Coroutine*)w->data)->GetScheduler()->outstanding_ --;
   });
 #endif
-  coro->Yield(STATE_COMPUTE);
+  coro->Suspend(STATE_COMPUTE);
 }
 
 Stack Scheduler::AllocateStack() {

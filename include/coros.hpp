@@ -108,7 +108,7 @@ public:
   void Destroy();
 
   void Resume();
-  void Yield(State new_state);
+  void Suspend(State new_state);
 
   void Join(Coroutine* coro);
   void Cancel();

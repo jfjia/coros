@@ -28,7 +28,7 @@ private:
 };
 
 int main(int argc, char** argv) {
-  MALOG_OPEN_STDIO(1, 0, true);
+  MALOG_OPEN_STDIO(1, true);
   coros::Scheduler sched(true);
   for (int i = 0; i < 100; i++) {
     MyCo* co = new MyCo();
