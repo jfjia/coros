@@ -138,3 +138,14 @@ inline uv_loop_t* Scheduler::GetLoop() {
   return loop_ptr_;
 }
 
+inline context::Stack Scheduler::AllocateStack() {
+  return context::AllocateStack(stack_size_);
+}
+
+inline void Scheduler::DeallocateStack(context::Stack& stack) {
+  context::DeallocateStack(stack);
+}
+
+inline void Scheduler::BeginCompute(Coroutine* coro) {
+  coro->Suspend(STATE_COMPUTE);
+}

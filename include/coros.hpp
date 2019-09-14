@@ -28,12 +28,16 @@ extern "C" transfer_t jump_fcontext(fcontext_t const to, void* vp);
 extern "C" fcontext_t make_fcontext(void* sp, size_t size, void (*fn)(transfer_t));
 extern "C" transfer_t ontop_fcontext(fcontext_t const to, void* vp, transfer_t(*fn)(transfer_t));
 
-}
-
 struct Stack {
   std::size_t size{ 0 };
   void* sp{ nullptr };
 };
+
+void InitStack();
+Stack AllocateStack(std::size_t stack_size);
+void DeallocateStack(Stack& stack);
+
+}
 
 struct Unwind {};
 
@@ -130,7 +134,7 @@ public:
 private:
   context::fcontext_t ctx_{ nullptr };
   context::fcontext_t caller_{ nullptr };
-  Stack stack_;
+  context::Stack stack_;
   std::function<void()> fn_;
   std::function<void()> exit_fn_;
   Scheduler* sched_{ nullptr };
@@ -158,13 +162,13 @@ class Scheduler {
 public:
   static Scheduler* Get();
 
-  Scheduler(bool is_default);
+  Scheduler(bool is_default, std::size_t stack_size = 0);
   ~Scheduler();
 
   std::size_t NextId();
-  Stack AllocateStack();
-  void DeallocateStack(Stack& stack);
 
+  context::Stack AllocateStack();
+  void DeallocateStack(context::Stack& stack);
   void AddCoroutine(Coroutine* coro); // for current thread
   void PostCoroutine(Coroutine* coro, bool is_compute = false); // for different thread
   void Wait(Coroutine* coro, long millisecs);
@@ -184,11 +188,8 @@ protected:
   void Cleanup(CoroutineList& cl);
 
 protected:
-  static std::size_t page_size_;
-  static std::size_t min_stack_size_;
-  static std::size_t max_stack_size_;
-  static std::size_t default_stack_size_;
   bool is_default_;
+  std::size_t stack_size_;
   uv_loop_t loop_;
   uv_loop_t* loop_ptr_{ nullptr };
   uv_prepare_t pre_;

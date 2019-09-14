@@ -1,38 +1,18 @@
 #include "coros.hpp"
 #include <cassert>
-#include <cmath>
 #include <atomic>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#if !defined(_WIN32)
-#include <unistd.h>
-#include <signal.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#endif
-
-#undef USE_UV_THREADPOOL
 
 namespace coros {
 
 static const int SWEEP_INTERVAL = 1000;
 static const int RECV_BUFFER_SIZE = 64 * 1024;
-#ifndef USE_UV_THREADPOOL
 static const int COMPUTE_THREADS_N = 2;
-#endif
-
-std::size_t Scheduler::page_size_;
-std::size_t Scheduler::min_stack_size_;
-std::size_t Scheduler::max_stack_size_;
-std::size_t Scheduler::default_stack_size_;
 
 thread_local Scheduler* local_sched = nullptr;
 
-#ifndef USE_UV_THREADPOOL
 class ComputeThreads {
 public:
   void Start();
@@ -51,42 +31,17 @@ protected:
 };
 
 ComputeThreads compute_threads;
-#endif
 
-Scheduler::Scheduler(bool is_default)
-  : is_default_(is_default) {
+Scheduler::Scheduler(bool is_default, std::size_t stack_size)
+  : is_default_(is_default), stack_size_(stack_size) {
   if (is_default) {
 #if defined(_WIN32)
     WSADATA wsa_data;
     WSAStartup(MAKEWORD(2, 2), &wsa_data);
-
-    SYSTEM_INFO si;
-    GetSystemInfo(&si);
-    page_size_ = (std::size_t)si.dwPageSize;
-
-    min_stack_size_ = 8 * 1024;
-    max_stack_size_ = 1024 * 1024;
-    default_stack_size_ = 32 * 1024;
-#else
-#if defined(SIGSTKSZ)
-    default_stack_size_ = SIGSTKSZ;
-#else
-    default_stack_size_ = 32 * 1024;
 #endif
-#if defined(MINSIGSTKSZ)
-    min_stack_size_ = MINSIGSTKSZ;
-#else
-    min_stack_size_ = 8 * 1024;
-#endif
-    page_size_ = (size_t)sysconf(_SC_PAGESIZE);
-    struct rlimit limit;
-    getrlimit(RLIMIT_STACK, &limit);
-    max_stack_size_ = (size_t)limit.rlim_max;
-#endif
+    context::InitStack();
     loop_ptr_ = uv_default_loop();
-#ifndef USE_UV_THREADPOOL
     compute_threads.Start();
-#endif
   } else {
     uv_loop_init(&loop_);
     loop_ptr_ = &loop_;
@@ -173,9 +128,7 @@ void Scheduler::Sweep() {
 Scheduler::~Scheduler() {
   uv_loop_close(loop_ptr_);
   if (is_default_) {
-#ifndef USE_UV_THREADPOOL
     compute_threads.Stop();
-#endif
 #if defined(_WIN32)
     WSACleanup();
 #endif
@@ -240,9 +193,7 @@ void Scheduler::RunCoros() {
       } else if (c->GetState() == STATE_COMPUTE) {
         FastDelVectorItem<Coroutine*>(ready_, i);
         outstanding_ ++;
-#ifndef USE_UV_THREADPOOL
         compute_threads.Add(c);
-#endif
       }
       i++;
     }
@@ -315,67 +266,10 @@ void Scheduler::PostCoroutine(Coroutine* coro, bool is_compute) {
   uv_async_send(&async_);
 }
 
-void Scheduler::BeginCompute(Coroutine* coro) {
-#ifdef USE_UV_THREADPOOL
-  uv_work_t c;
-  c.data = (void*)coro;
-  uv_queue_work(loop_ptr_, &c, [](uv_work_t* w) {
-    ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE);
-    ((Coroutine*)w->data)->Resume();
-  }, [](uv_work_t* w, int status) {
-    ((Coroutine*)w->data)->SetEvent(EVENT_COMPUTE_DONE);
-    ((Coroutine*)w->data)->GetScheduler()->AddCoroutine((Coroutine*)w->data);
-    ((Coroutine*)w->data)->GetScheduler()->outstanding_ --;
-  });
-#endif
-  coro->Suspend(STATE_COMPUTE);
-}
-
-Stack Scheduler::AllocateStack() {
-  const std::size_t pages(static_cast<std::size_t>(std::ceil(static_cast<float>(default_stack_size_) / page_size_)));
-  const std::size_t size__ = (pages + 1) * page_size_;
-  Stack stack;
-  void* vp = nullptr;
-
-#if defined(_WIN32)
-  vp = ::VirtualAlloc(0, size__, MEM_COMMIT, PAGE_READWRITE);
-  if (! vp) {
-    return stack;
-  }
-  DWORD old_options;
-  ::VirtualProtect(vp, page_size_, PAGE_READWRITE | PAGE_GUARD /*PAGE_NOACCESS*/, &old_options);
-#else
-# if defined(MAP_ANON)
-  vp = mmap(0, size__, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-# else
-  vp = mmap(0, size__, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-# endif
-  if (vp == MAP_FAILED) {
-    return stack;
-  }
-  mprotect(vp, page_size_, PROT_NONE);
-#endif
-
-  stack.size = size__;
-  stack.sp = static_cast< char* >(vp) + stack.size;
-  return stack;
-}
-
-void Scheduler::DeallocateStack(Stack& stack) {
-  assert(stack.sp);
-  void* vp = static_cast< char* >(stack.sp) - stack.size;
-#if defined(_WIN32)
-  ::VirtualFree(vp, 0, MEM_RELEASE);
-#else
-  munmap(vp, stack.size);
-#endif
-}
-
 Scheduler* Scheduler::Get() {
   return local_sched;
 }
 
-#ifndef USE_UV_THREADPOOL
 void ComputeThreads::Start() {
   for (int i = 0; i < COMPUTE_THREADS_N; i++) {
     threads_.emplace_back(std::bind(&ComputeThreads::Consume, this));
@@ -428,6 +322,5 @@ void ComputeThreads::Consume() {
     coro->GetScheduler()->PostCoroutine(coro, true);
   }
 }
-#endif
 
 }
