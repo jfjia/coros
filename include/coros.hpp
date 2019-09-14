@@ -91,7 +91,9 @@ public:
   bool ConnectIp(const std::string& ip, int port);
 
   int ReadSome(char* buf, int len);
+  int ReadExactly(char* buf, int len);
   int WriteSome(const char* buf, int len);
+  int WriteExactly(const char* buf, int len);
 
   Event Wait(int flags);
 

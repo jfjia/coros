@@ -248,6 +248,21 @@ int Socket::ReadSome(char* data, int len) {
   }
 }
 
+int Socket::ReadExactly(char* data, int len) {
+  int size = 0;
+  while (size < len) {
+    int rc = ReadSome(data + size, len - size);
+    if (rc == 0) { // EOF
+      return size;
+    }
+    if (rc < 0) {
+      return size;
+    }
+    size += rc;
+  }
+  return size;
+}
+
 int Socket::WriteSome(const char* data, int len) {
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -265,6 +280,18 @@ int Socket::WriteSome(const char* data, int len) {
       return -1;
     }
   }
+}
+
+int Socket::WriteExactly(const char* data, int len) {
+  int size = 0;
+  while (size < len) {
+    int rc = WriteSome(data + size, len - size);
+    if (rc <= 0) {
+      return size;
+    }
+    size += rc;
+  }
+  return size;
 }
 
 uv_os_sock_t Socket::Accept() {
