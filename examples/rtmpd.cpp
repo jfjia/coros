@@ -47,7 +47,7 @@ protected:
     if (s.ReadExactly((char*)&c0, 1) != 1) {
       return false;
     }
-    MALOG_INFO("handshake, c0=" << c0);
+    MALOG_INFO("handshake, c0=" << std::to_string(c0));
     if (s.WriteExactly((const char*)&c0, 1) != 1) {
       return false;
     }
