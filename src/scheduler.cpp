@@ -35,10 +35,6 @@ ComputeThreads compute_threads;
 Scheduler::Scheduler(bool is_default, std::size_t stack_size)
   : is_default_(is_default), stack_size_(stack_size) {
   if (is_default) {
-#if defined(_WIN32)
-    WSADATA wsa_data;
-    WSAStartup(MAKEWORD(2, 2), &wsa_data);
-#endif
     context::InitStack();
     loop_ptr_ = uv_default_loop();
     compute_threads.Start();
@@ -126,12 +122,10 @@ void Scheduler::Sweep() {
 }
 
 Scheduler::~Scheduler() {
+  local_sched = nullptr;
   uv_loop_close(loop_ptr_);
   if (is_default_) {
     compute_threads.Stop();
-#if defined(_WIN32)
-    WSACleanup();
-#endif
   }
 }
 
