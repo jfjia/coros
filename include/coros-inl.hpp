@@ -18,6 +18,10 @@ inline int Socket::GetDeadline() {
   return timeout_secs_;
 }
 
+inline int Socket::ReadExactly(char* buf, int len) {
+  return ReadAtLeast(buf, len, len);
+}
+
 inline Event Socket::Wait(int flags) {
   coro_->GetScheduler()->Wait(coro_, *this, flags);
   return coro_->GetEvent();

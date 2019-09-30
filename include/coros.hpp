@@ -92,6 +92,7 @@ public:
 
   int ReadSome(char* buf, int len);
   int ReadExactly(char* buf, int len);
+  int ReadAtLeast(char* buf, int len, int min_len);
   int WriteSome(const char* buf, int len);
   int WriteExactly(const char* buf, int len);
 

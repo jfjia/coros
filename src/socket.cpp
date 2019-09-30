@@ -248,9 +248,10 @@ int Socket::ReadSome(char* data, int len) {
   }
 }
 
-int Socket::ReadExactly(char* data, int len) {
+int Socket::ReadAtLeast(char* data, int len, int min_len) {
+  assert(min_len < len);
   int size = 0;
-  while (size < len) {
+  while (size < min_len) {
     int rc = ReadSome(data + size, len - size);
     if (rc == 0) { // EOF
       return size;
