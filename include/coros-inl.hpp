@@ -72,13 +72,37 @@ inline char* Buffer<N>::Space() {
 }
 
 template<int N>
+inline char* Buffer<N>::Space(Socket& s, int n) {
+  if (SpaceSize() >= n) {
+    return Space();
+  }
+  if ((N - Size()) >= n) {
+    Compact();
+    return Space();
+  }
+  if (N < n) {
+    return -1;
+  }
+  if (s.WriteExactly(Data(), Size()) != Size()) {
+    return -1;
+  }
+  Clear();
+  return Space();
+}
+
+template<int N>
 inline int Buffer<N>::SpaceSize() {
   return N - write_index_;
 }
 
 template<int N>
 inline int Buffer<N>::Drain(Socket& s) {
-  return s.WriteExactly(Data(), Size());
+  int size = Size();
+  if (s.WriteExactly(Data(), size) != size) {
+    return -1;
+  }
+  Clear();
+  return size;
 }
 
 template<int N>
