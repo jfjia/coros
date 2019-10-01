@@ -11,7 +11,9 @@ struct Challenge {
 class Conn {
 public:
   bool Start(uv_os_sock_t fd) {
-    if (!coro_.Create(coros::Scheduler::Get(), std::bind(&Conn::Fn, this, fd), std::bind(&Conn::ExitFn, this))) {
+    if (!coro_.Create(coros::Scheduler::Get(),
+                      std::bind(&Conn::Fn, this, fd),
+                      std::bind(&Conn::ExitFn, this))) {
       return false;
     }
     return true;
@@ -44,9 +46,11 @@ public:
 protected:
   bool HandshakeC0(coros::Socket& s) {
     uint8_t c0;
-    if (s.ReadExactly((char*)&c0, 1) != 1) {
+    if (rb_.Read(s, 1) < 1) {
       return false;
     }
+    c0 = *((uint8_t*)rb_.Data());
+    rb_.RemoveConsumed(1);
     MALOG_INFO("handshake, c0=" << std::to_string(c0));
     if (s.WriteExactly((const char*)&c0, 1) != 1) {
       return false;
@@ -55,15 +59,15 @@ protected:
   }
 
   bool HandshakeC1(coros::Socket& s) {
-    Challenge c1;
-    if (s.ReadExactly((char*)&c1, sizeof(c1)) != sizeof(c1)) {
+    if (rb_.Read(s, sizeof(Challenge)) < sizeof(Challenge)) {
       return false;
     }
-    MALOG_INFO("handshake, c1 time: " << c1.time <<
-               ", version: " << static_cast<uint32_t>(c1.version[0]) << "." <<
-               static_cast<uint32_t>(c1.version[1]) << "." <<
-               static_cast<uint32_t>(c1.version[2]) << "." <<
-               static_cast<uint32_t>(c1.version[3]));
+    Challenge* c1 = (Challenge*)rb_.Data();
+    MALOG_INFO("handshake, c1 time: " << c1->time <<
+               ", version: " << static_cast<uint32_t>(c1->version[0]) << "." <<
+               static_cast<uint32_t>(c1->version[1]) << "." <<
+               static_cast<uint32_t>(c1->version[2]) << "." <<
+               static_cast<uint32_t>(c1->version[3]));
     Challenge s1;
     s1.time = 0;
     s1.version[0] = 2;
@@ -73,33 +77,38 @@ protected:
     if (s.WriteExactly((const char*)&s1, sizeof(s1)) != sizeof(s1)) {
       return false;
     }
-    if (s.WriteExactly((const char*)&c1, sizeof(c1)) != sizeof(c1)) {
+    if (s.WriteExactly((const char*)c1, sizeof(Challenge)) != sizeof(Challenge)) {
       return false;
     }
+    rb_.RemoveConsumed(sizeof(Challenge));
     return true;
   }
 
   bool HandshakeC2(coros::Socket& s) {
-    Challenge c2;
-    if (s.ReadExactly((char*)&c2, sizeof(c2)) != sizeof(c2)) {
+    if (rb_.Read(s, sizeof(Challenge)) < sizeof(Challenge)) {
       return false;
     }
-    MALOG_INFO("handshake, c2 time: " << c2.time <<
-               ", version: " << static_cast<uint32_t>(c2.version[0]) << "." <<
-               static_cast<uint32_t>(c2.version[1]) << "." <<
-               static_cast<uint32_t>(c2.version[2]) << "." <<
-               static_cast<uint32_t>(c2.version[3]));
+    Challenge* c2 = (Challenge*)rb_.Data();
+    MALOG_INFO("handshake, c2 time: " << c2->time <<
+               ", version: " << static_cast<uint32_t>(c2->version[0]) << "." <<
+               static_cast<uint32_t>(c2->version[1]) << "." <<
+               static_cast<uint32_t>(c2->version[2]) << "." <<
+               static_cast<uint32_t>(c2->version[3]));
+    rb_.RemoveConsumed(sizeof(Challenge));
     return true;
   }
 
 private:
   coros::Coroutine coro_;
+  coros::Buffer<4096> rb_;
 };
 
 class Listener {
 public:
   bool Start() {
-    if (!coro_.Create(coros::Scheduler::Get(), std::bind(&Listener::Fn, this), std::bind(&Listener::ExitFn, this))) {
+    if (!coro_.Create(coros::Scheduler::Get(),
+                      std::bind(&Listener::Fn, this),
+                      std::bind(&Listener::ExitFn, this))) {
       return false;
     }
     return true;

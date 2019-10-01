@@ -27,6 +27,79 @@ inline Event Socket::Wait(int flags) {
   return coro_->GetEvent();
 }
 
+template<int N>
+inline void Buffer<N>::Clear() {
+  read_index_ = write_index_ = 0;
+}
+
+template<int N>
+inline char* Buffer<N>::Data() {
+  return &data_[read_index_];
+}
+
+template<int N>
+inline int Buffer<N>::Size() {
+  return write_index_ - read_index_;
+}
+
+template<int N>
+inline void Buffer<N>::RemoveConsumed(int n) {
+  if (n >= Size()) {
+    Clear();
+  } else {
+    read_index_ += n;
+  }
+}
+
+template<int N>
+inline void Buffer<N>::Commit(int n) {
+  if ((Size() + n) <= N) {
+    write_index_ += n;
+  }
+}
+
+template<int N>
+inline void Buffer<N>::Compact() {
+  int size = Size();
+  memmove(&data_[0], &data_[read_index_], size);
+  read_index_ = 0;
+  write_index_ = size;
+}
+
+template<int N>
+inline char* Buffer<N>::Space() {
+  return &data_[write_index_];
+}
+
+template<int N>
+inline int Buffer<N>::SpaceSize() {
+  return N - write_index_;
+}
+
+template<int N>
+inline int Buffer<N>::Drain(Socket& s) {
+  return s.WriteExactly(Data(), Size());
+}
+
+template<int N>
+inline int Buffer<N>::Read(Socket& s, int min_len) {
+  if (min_len > N) {
+    return -1;
+  }
+  if (Size() >= min_len) {
+    return Size();
+  }
+  if ((N - read_index_) < min_len) {
+    Compact();
+  }
+  int n = s.ReadAtLeast(Space(), SpaceSize(), min_len - Size());
+  if (n <= 0) {
+    return n;
+  }
+  Commit(n);
+  return Size();
+}
+
 inline Coroutine* Coroutine::Self() {
   Scheduler* sched = Scheduler::Get();
   if (sched) {

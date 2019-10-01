@@ -105,6 +105,26 @@ protected:
   Coroutine* coro_{ nullptr };
 };
 
+template<int N>
+class Buffer {
+public:
+  void Clear();
+  char* Data();
+  int Size();
+  void RemoveConsumed(int n);
+  void Commit(int n);
+  void Compact();
+  char* Space();
+  int SpaceSize();
+  int Drain(Socket& s);
+  int Read(Socket& s, int min_len);
+
+protected:
+  char data_[N];
+  int read_index_{ 0 };
+  int write_index_{ 0 };
+};
+
 class Coroutine {
 public:
   static Coroutine* Self();
