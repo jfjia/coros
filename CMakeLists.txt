@@ -54,3 +54,4 @@ add_library(coros STATIC ${COROS_SRC} ${ASM_SOURCES})
 target_include_directories(coros PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 add_subdirectory(examples)
+add_subdirectory(rtmpd)

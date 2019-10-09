@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cd ../
-SUBDIRS="include src examples "
+SUBDIRS="include src examples rtmpd "
 FILETYPES="*.c *.h *.cpp *.hpp"
 ASTYLE="astyle -A2 -HtUwpj -M80 -c -s2 --pad-header --align-pointer=type "
 for d in ${SUBDIRS}
