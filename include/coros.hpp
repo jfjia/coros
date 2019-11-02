@@ -116,8 +116,8 @@ public:
   void Commit(int n);
   void Compact();
   char* Space();
-  char* Space(Socket& s, int n);
   int SpaceSize();
+  char* Space(Socket& s, int n);
   int Drain(Socket& s);
   int Read(Socket& s, int min_len);
 

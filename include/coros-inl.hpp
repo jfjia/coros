@@ -81,10 +81,10 @@ inline char* Buffer<N>::Space(Socket& s, int n) {
     return Space();
   }
   if (N < n) {
-    return -1;
+    return nullptr;
   }
   if (s.WriteExactly(Data(), Size()) != Size()) {
-    return -1;
+    return nullptr;
   }
   Clear();
   return Space();

@@ -23,7 +23,11 @@ public:
         MALOG_INFO("coro[" << coro_.GetId() << "] read fail: " << len);
         break;
       }
-      len = s.WriteSome(buf, len);
+      len = s.WriteExactly(buf, len);
+      if (len <= 0) {
+        MALOG_ERROR("coro[" << coro_.GetId() << "] conn broken");
+        break;
+      }
       MALOG_INFO("coro[" << coro_.GetId() << "] out " << len << "bytes");
       if (strncmp(buf, "exit", 4) == 0) {
         break;
