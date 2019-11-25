@@ -248,6 +248,17 @@ int Socket::ReadSome(char* data, int len) {
   }
 }
 
+int Socket::ReadSomeNoWait(char* data, int len) {
+  int rc = ::recv(s_, data, len, 0);
+  if (rc > 0) {
+    return rc;
+  }
+  if (!WouldBlock()) {
+    return -1;
+  }
+  return 0;
+}
+
 int Socket::ReadAtLeast(char* data, int len, int min_len) {
   assert(min_len < len);
   int size = 0;

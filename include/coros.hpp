@@ -8,6 +8,7 @@
 #include <cstring>
 #include <mutex>
 #include <vector>
+#include <cassert>
 
 #if defined(_WIN32)
 #define BAD_SOCKET (uintptr_t)(~0)
@@ -76,8 +77,7 @@ class Socket {
   friend class Scheduler;
 
 public:
-  Socket();
-  Socket(uv_os_sock_t s);
+  Socket(uv_os_sock_t s = BAD_SOCKET);
 
   void Close();
 
@@ -92,6 +92,7 @@ public:
   bool ConnectIp(const std::string& ip, int port);
 
   int ReadSome(char* buf, int len);
+  int ReadSomeNoWait(char* buf, int len);
   int ReadExactly(char* buf, int len);
   int ReadAtLeast(char* buf, int len, int min_len);
   int WriteSome(const char* buf, int len);
@@ -118,8 +119,9 @@ public:
   char* Space();
   int SpaceSize();
   char* Space(Socket& s, int n);
-  int Drain(Socket& s);
-  int Read(Socket& s, int min_len);
+  bool Drain(Socket& s);
+  bool Read(Socket& s, int min_len);
+  bool ReadNoWait(Socket& s);
 
 protected:
   char data_[N];

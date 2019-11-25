@@ -1,4 +1,6 @@
-#include "rtmpd.hpp"
+#include "malog.h"
+#include "conn.hpp"
+#include "amf.hpp"
 
 bool Conn::Start(uv_os_sock_t fd) {
   if (!coro_.Create(coros::Scheduler::Get(),
@@ -12,19 +14,16 @@ bool Conn::Start(uv_os_sock_t fd) {
 void Conn::Fn(uv_os_sock_t fd) {
   coros::Socket s(fd);
   s.SetDeadline(30);
-  do {
-    if (!HandshakeC0(s)) {
-      break;
-    }
-    if (!HandshakeC1(s)) {
-      break;
-    }
-    if (!HandshakeC2(s)) {
-      break;
-    }
+
+  if (Handshake(s)) {
     MALOG_INFO("handshake done");
-    HandlePacket(s);
-  } while (0);
+    for (;;) {
+      Header header;
+      if (!ReadHeader(s, header)) {
+        break;
+      }
+    }
+  }
 
   s.Close();
 }
@@ -34,9 +33,10 @@ void Conn::ExitFn() {
   delete this;
 }
 
-bool Conn::HandshakeC0(coros::Socket& s) {
+bool Conn::Handshake(coros::Socket& s) {
+  // C0
   uint8_t c0;
-  if (rb_.Read(s, 1) < 1) {
+  if (!rb_.Read(s, 1)) {
     return false;
   }
   c0 = *((uint8_t*)rb_.Data());
@@ -49,11 +49,9 @@ bool Conn::HandshakeC0(coros::Socket& s) {
   }
   *o = c0;
   wb_.Commit(1);
-  return true;
-}
 
-bool Conn::HandshakeC1(coros::Socket& s) {
-  if (rb_.Read(s, RTMP_SIG_SIZE) < RTMP_SIG_SIZE) {
+  // C1
+  if (!rb_.Read(s, RTMP_SIG_SIZE)) {
     return false;
   }
   Challenge* c1 = (Challenge*)rb_.Data();
@@ -73,7 +71,7 @@ bool Conn::HandshakeC1(coros::Socket& s) {
   s1->version[2] = 0;
   s1->version[3] = 0;
   wb_.Commit(sizeof(Challenge));
-  if (wb_.Drain(s) <= 0) {
+  if (!wb_.Drain(s)) {
     MALOG_ERROR("send failed");
     return false;
   }
@@ -81,11 +79,9 @@ bool Conn::HandshakeC1(coros::Socket& s) {
     return false;
   }
   rb_.RemoveConsumed(RTMP_SIG_SIZE);
-  return true;
-}
 
-bool Conn::HandshakeC2(coros::Socket& s) {
-  if (rb_.Read(s, RTMP_SIG_SIZE) < RTMP_SIG_SIZE) {
+  // C2
+  if (!rb_.Read(s, RTMP_SIG_SIZE)) {
     return false;
   }
   Challenge* c2 = (Challenge*)rb_.Data();
@@ -98,17 +94,8 @@ bool Conn::HandshakeC2(coros::Socket& s) {
   return true;
 }
 
-void Conn::HandlePacket(coros::Socket& s) {
-  Header header;
-  for (;;) {
-    if (!ReadHeader(s, header)) {
-      break;
-    }
-  }
-}
-
 bool Conn::ReadHeader(coros::Socket& s, Header& header) {
-  if (rb_.Read(s, 1) < 1) {
+  if (!rb_.Read(s, 1)) {
     return false;
   }
   uint8_t flags = *((uint8_t*)rb_.Data());
@@ -125,13 +112,13 @@ bool Conn::ReadHeader(coros::Socket& s, Header& header) {
   header.stream_id = headers_[header.channel].stream_id;
   header.ts = headers_[header.channel].ts;
   if (header.type != HEADER_1_BYTE) {
-    if (rb_.Read(s, 3) < 3) {
+    if (!rb_.Read(s, 3)) {
       return false;
     }
     header.ts = RB24((const uint8_t*)rb_.Data());
     rb_.RemoveConsumed(3);
     if (header.type != HEADER_4_BYTE) {
-      if (rb_.Read(s, 4) < 4) {
+      if (!rb_.Read(s, 4)) {
         return false;
       }
       header.len = RB24((const uint8_t*)rb_.Data());
@@ -139,7 +126,7 @@ bool Conn::ReadHeader(coros::Socket& s, Header& header) {
       header.msg_type = *((uint8_t*)rb_.Data());
       rb_.RemoveConsumed(1);
       if (header.type != HEADER_8_BYTE) {
-        if (rb_.Read(s, 4) < 4) {
+        if (!rb_.Read(s, 4)) {
           return false;
         }
         header.stream_id = RL32((const uint8_t*)rb_.Data());
@@ -148,7 +135,7 @@ bool Conn::ReadHeader(coros::Socket& s, Header& header) {
     }
   }
   if (header.ts == 0xffffff) {
-    if (rb_.Read(s, 4) < 4) {
+    if (!rb_.Read(s, 4)) {
       return false;
     }
     header.final_ts = RB32((const uint8_t*)rb_.Data());
@@ -164,39 +151,4 @@ bool Conn::ReadHeader(coros::Socket& s, Header& header) {
     headers_[header.channel] = header;
   }
   return true;
-}
-
-bool Listener::Start() {
-  if (!coro_.Create(coros::Scheduler::Get(),
-                    std::bind(&Listener::Fn, this),
-                    std::bind(&Listener::ExitFn, this))) {
-    return false;
-  }
-  return true;
-}
-
-void Listener::Fn() {
-  coros::Socket s;
-  s.ListenByIp("0.0.0.0", 9090);
-  for (;;) {
-    uv_os_sock_t s_new = s.Accept();
-    MALOG_INFO("coro[" << coro_.GetId() << ": accept new " << s_new);
-    if (s_new == BAD_SOCKET) {
-      break;
-    }
-    Conn* c = new Conn();
-    c->Start(s_new);
-  }
-}
-
-void Listener::ExitFn() {
-}
-
-int main(int argc, char** argv) {
-  MALOG_OPEN_STDIO(1, true);
-  coros::Scheduler sched(true);
-  Listener l;
-  l.Start();
-  sched.Run();
-  return 0;
 }

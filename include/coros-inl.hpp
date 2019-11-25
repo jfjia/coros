@@ -1,13 +1,10 @@
-inline Socket::Socket() {
-  poll_.data = this;
-  coro_ = Coroutine::Self();
-}
-
 inline Socket::Socket(uv_os_sock_t s)
   : s_(s) {
   poll_.data = this;
   coro_ = Coroutine::Self();
-  uv_poll_init_socket(Scheduler::Get()->GetLoop(), &poll_, s_);
+  if (s != BAD_SOCKET) {
+    uv_poll_init_socket(Scheduler::Get()->GetLoop(), &poll_, s_);
+  }
 }
 
 inline void Socket::SetDeadline(int timeout_secs) {
@@ -96,32 +93,44 @@ inline int Buffer<N>::SpaceSize() {
 }
 
 template<int N>
-inline int Buffer<N>::Drain(Socket& s) {
+inline bool Buffer<N>::Drain(Socket& s) {
   int size = Size();
   if (s.WriteExactly(Data(), size) != size) {
-    return -1;
+    return false;
   }
   Clear();
-  return size;
+  return true;
 }
 
 template<int N>
-inline int Buffer<N>::Read(Socket& s, int min_len) {
-  if (min_len > N) {
-    return -1;
-  }
+inline bool Buffer<N>::Read(Socket& s, int min_len) {
+  assert(min_len <= N);
   if (Size() >= min_len) {
-    return Size();
+    return true;
   }
   if ((N - read_index_) < min_len) {
     Compact();
   }
   int n = s.ReadAtLeast(Space(), SpaceSize(), min_len - Size());
   if (n <= 0) {
-    return n;
+    return false;
   }
   Commit(n);
-  return Size();
+  return true;
+}
+
+template<int N>
+inline bool Buffer<N>::ReadNoWait(Socket& s) {
+  Compact();
+  if (SpaceSize() <= 0) {
+    return false;
+  }
+  int n = s.ReadSomeNoWait(Space(), SpaceSize());
+  if (n <= 0) {
+    return false;
+  }
+  Commit(n);
+  return true;
 }
 
 inline Coroutine* Coroutine::Self() {

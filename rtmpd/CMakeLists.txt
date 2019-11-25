@@ -1,3 +1,6 @@
 set(LIBRARIES coros malog ${DEPENDENT_LIBRARIES})
-add_executable(rtmpd rtmpd.cpp)
+set(RTMPD_SRCS conn.cpp
+               server.cpp
+               main.cpp)
+add_executable(rtmpd ${RTMPD_SRCS})
 target_link_libraries(rtmpd ${LIBRARIES})
