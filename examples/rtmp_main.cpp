@@ -1,6 +1,6 @@
 #include "malog.h"
-#include "server.hpp"
-#include "conn.hpp"
+#include "rtmp_server.hpp"
+#include "rtmp_conn.hpp"
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);

@@ -25,6 +25,10 @@ inline Event Socket::Wait(int flags) {
 }
 
 template<int N>
+inline Buffer<N>::Buffer(Socket& s) : s_(s) {
+}
+
+template<int N>
 inline void Buffer<N>::Clear() {
   read_index_ = write_index_ = 0;
 }
@@ -69,7 +73,7 @@ inline char* Buffer<N>::Space() {
 }
 
 template<int N>
-inline char* Buffer<N>::Space(Socket& s, int n) {
+inline char* Buffer<N>::Space(int n) {
   if (SpaceSize() >= n) {
     return Space();
   }
@@ -80,7 +84,7 @@ inline char* Buffer<N>::Space(Socket& s, int n) {
   if (N < n) {
     return nullptr;
   }
-  if (s.WriteExactly(Data(), Size()) != Size()) {
+  if (s_.WriteExactly(Data(), Size()) != Size()) {
     return nullptr;
   }
   Clear();
@@ -93,9 +97,9 @@ inline int Buffer<N>::SpaceSize() {
 }
 
 template<int N>
-inline bool Buffer<N>::Drain(Socket& s) {
+inline bool Buffer<N>::Drain() {
   int size = Size();
-  if (s.WriteExactly(Data(), size) != size) {
+  if (s_.WriteExactly(Data(), size) != size) {
     return false;
   }
   Clear();
@@ -103,7 +107,7 @@ inline bool Buffer<N>::Drain(Socket& s) {
 }
 
 template<int N>
-inline bool Buffer<N>::Read(Socket& s, int min_len) {
+inline bool Buffer<N>::Read(int min_len) {
   assert(min_len <= N);
   if (Size() >= min_len) {
     return true;
@@ -111,7 +115,7 @@ inline bool Buffer<N>::Read(Socket& s, int min_len) {
   if ((N - read_index_) < min_len) {
     Compact();
   }
-  int n = s.ReadAtLeast(Space(), SpaceSize(), min_len - Size());
+  int n = s_.ReadAtLeast(Space(), SpaceSize(), min_len - Size());
   if (n <= 0) {
     return false;
   }
@@ -120,17 +124,46 @@ inline bool Buffer<N>::Read(Socket& s, int min_len) {
 }
 
 template<int N>
-inline bool Buffer<N>::ReadNoWait(Socket& s) {
+inline bool Buffer<N>::ReadNoWait() {
   Compact();
   if (SpaceSize() <= 0) {
     return false;
   }
-  int n = s.ReadSomeNoWait(Space(), SpaceSize());
+  int n = s_.ReadSomeNoWait(Space(), SpaceSize());
   if (n <= 0) {
     return false;
   }
   Commit(n);
   return true;
+}
+
+template<int N>
+inline bool Buffer<N>::Read8(uint8_t& val) {
+  if (!Read(1)) {
+    return false;
+  }
+  val = *((uint8_t*)Data());
+  RemoveConsumed(1);
+  return true;
+}
+
+template<int N>
+inline bool Buffer<N>::Write8(uint8_t val) {
+  uint8_t* o = (uint8_t*)Space(1);
+  if (!o) {
+    return false;
+  }
+  *o = val;
+  Commit(1);
+  return true;
+}
+
+template<int N>
+inline bool Buffer<N>::WriteExactly(const char* buf, int len) {
+  if (!Drain()) {
+    return false;
+  }
+  return s_.WriteExactly(buf, len);
 }
 
 inline Coroutine* Coroutine::Self() {

@@ -28,6 +28,14 @@ struct Header {
   uint64_t final_ts;
 };
 
+struct IoBuf {
+  coros::Buffer<4096> i;
+  coros::Buffer<4096> o;
+
+  IoBuf(coros::Socket& s) : i(s), o(s) {
+  }
+};
+
 class Conn {
 public:
   enum class Type {
@@ -39,13 +47,11 @@ public:
   void ExitFn();
 
 protected:
-  bool Handshake(coros::Socket& s);
-  bool ReadHeader(coros::Socket& s, Header& header);
+  bool Handshake(IoBuf& io);
+  bool ReadHeader(IoBuf& io, Header& header);
 
 private:
   coros::Coroutine coro_;
-  coros::Buffer<4096> rb_;
-  coros::Buffer<4096> wb_;
   Header headers_[MAX_CHANNELS];
   uint32_t in_chunk_size_{ 128 };
   uint32_t out_chunk_size_{ 128 };

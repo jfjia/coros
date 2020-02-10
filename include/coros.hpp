@@ -110,23 +110,33 @@ protected:
 template<int N>
 class Buffer {
 public:
+  Buffer(Socket& s);
+
   void Clear();
+
   char* Data();
   int Size();
   void RemoveConsumed(int n);
+
   void Commit(int n);
   void Compact();
   char* Space();
   int SpaceSize();
-  char* Space(Socket& s, int n);
-  bool Drain(Socket& s);
-  bool Read(Socket& s, int min_len);
-  bool ReadNoWait(Socket& s);
+  char* Space(int n);
+
+  bool Drain();
+  bool Read(int min_len);
+  bool ReadNoWait();
+
+  bool Read8(uint8_t& val);
+  bool Write8(uint8_t val);
+  bool WriteExactly(const char* buf, int len);
 
 protected:
   char data_[N];
   int read_index_{ 0 };
   int write_index_{ 0 };
+  Socket& s_;
 };
 
 class Coroutine {

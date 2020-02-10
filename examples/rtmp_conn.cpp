@@ -1,6 +1,6 @@
 #include "malog.h"
-#include "conn.hpp"
-#include "amf.hpp"
+#include "rtmp_conn.hpp"
+#include "rtmp_amf.hpp"
 
 bool Conn::Start(uv_os_sock_t fd) {
   if (!coro_.Create(coros::Scheduler::Get(),
@@ -13,13 +13,14 @@ bool Conn::Start(uv_os_sock_t fd) {
 
 void Conn::Fn(uv_os_sock_t fd) {
   coros::Socket s(fd);
+  IoBuf io(s);
   s.SetDeadline(30);
 
-  if (Handshake(s)) {
+  if (Handshake(io)) {
     MALOG_INFO("handshake done");
     for (;;) {
       Header header;
-      if (!ReadHeader(s, header)) {
+      if (!ReadHeader(io, header)) {
         break;
       }
     }
@@ -33,34 +34,29 @@ void Conn::ExitFn() {
   delete this;
 }
 
-bool Conn::Handshake(coros::Socket& s) {
+bool Conn::Handshake(IoBuf& io) {
   // C0
   uint8_t c0;
-  if (!rb_.Read(s, 1)) {
+  if (!io.i.Read8(c0)) {
     return false;
   }
-  c0 = *((uint8_t*)rb_.Data());
-  rb_.RemoveConsumed(1);
   MALOG_INFO("handshake, c0=" << std::to_string(c0));
-  uint8_t* o = (uint8_t*)wb_.Space(s, 1);
-  if (!o) {
+  if (!io.o.Write8(c0)) {
     MALOG_ERROR("fail to send");
     return false;
   }
-  *o = c0;
-  wb_.Commit(1);
 
   // C1
-  if (!rb_.Read(s, RTMP_SIG_SIZE)) {
+  if (!io.i.Read(RTMP_SIG_SIZE)) {
     return false;
   }
-  Challenge* c1 = (Challenge*)rb_.Data();
+  Challenge* c1 = (Challenge*)io.i.Data();
   MALOG_INFO("handshake, c1 time: " << c1->time <<
              ", version: " << static_cast<uint32_t>(c1->version[0]) << "." <<
              static_cast<uint32_t>(c1->version[1]) << "." <<
              static_cast<uint32_t>(c1->version[2]) << "." <<
              static_cast<uint32_t>(c1->version[3]));
-  Challenge* s1 = (Challenge*)wb_.Space(s, sizeof(Challenge));
+  Challenge* s1 = (Challenge*)io.o.Space(sizeof(Challenge));
   if (!s1) {
     MALOG_ERROR("send failed");
     return false;
@@ -70,36 +66,36 @@ bool Conn::Handshake(coros::Socket& s) {
   s1->version[1] = 0;
   s1->version[2] = 0;
   s1->version[3] = 0;
-  wb_.Commit(sizeof(Challenge));
-  if (!wb_.Drain(s)) {
+  io.o.Commit(sizeof(Challenge));
+  if (!io.o.Drain()) {
     MALOG_ERROR("send failed");
     return false;
   }
-  if (s.WriteExactly((const char*)c1, RTMP_SIG_SIZE) != RTMP_SIG_SIZE) {
+  if (!io.o.WriteExactly((const char*)c1, RTMP_SIG_SIZE)) {
     return false;
   }
-  rb_.RemoveConsumed(RTMP_SIG_SIZE);
+  io.i.RemoveConsumed(RTMP_SIG_SIZE);
 
   // C2
-  if (!rb_.Read(s, RTMP_SIG_SIZE)) {
+  if (!io.i.Read(RTMP_SIG_SIZE)) {
     return false;
   }
-  Challenge* c2 = (Challenge*)rb_.Data();
+  Challenge* c2 = (Challenge*)io.i.Data();
   MALOG_INFO("handshake, c2 time: " << c2->time <<
              ", version: " << static_cast<uint32_t>(c2->version[0]) << "." <<
              static_cast<uint32_t>(c2->version[1]) << "." <<
              static_cast<uint32_t>(c2->version[2]) << "." <<
              static_cast<uint32_t>(c2->version[3]));
-  rb_.RemoveConsumed(RTMP_SIG_SIZE);
+  io.i.RemoveConsumed(RTMP_SIG_SIZE);
   return true;
 }
 
-bool Conn::ReadHeader(coros::Socket& s, Header& header) {
-  if (!rb_.Read(s, 1)) {
+bool Conn::ReadHeader(IoBuf& io, Header& header) {
+  uint8_t flags;
+  if (!io.i.Read8(flags)) {
     return false;
   }
-  uint8_t flags = *((uint8_t*)rb_.Data());
-  rb_.RemoveConsumed(1);
+
   header.channel = static_cast<uint32_t>(flags & 0x3F);
   header.type = static_cast<uint8_t>(flags >> 6);
   if (header.channel < 2) {
@@ -112,34 +108,34 @@ bool Conn::ReadHeader(coros::Socket& s, Header& header) {
   header.stream_id = headers_[header.channel].stream_id;
   header.ts = headers_[header.channel].ts;
   if (header.type != HEADER_1_BYTE) {
-    if (!rb_.Read(s, 3)) {
+    if (!io.i.Read(3)) {
       return false;
     }
-    header.ts = RB24((const uint8_t*)rb_.Data());
-    rb_.RemoveConsumed(3);
+    header.ts = RB24((const uint8_t*)io.i.Data());
+    io.i.RemoveConsumed(3);
     if (header.type != HEADER_4_BYTE) {
-      if (!rb_.Read(s, 4)) {
+      if (!io.i.Read(4)) {
         return false;
       }
-      header.len = RB24((const uint8_t*)rb_.Data());
-      rb_.RemoveConsumed(3);
-      header.msg_type = *((uint8_t*)rb_.Data());
-      rb_.RemoveConsumed(1);
+      header.len = RB24((const uint8_t*)io.i.Data());
+      io.i.RemoveConsumed(3);
+      header.msg_type = *((uint8_t*)io.i.Data());
+      io.i.RemoveConsumed(1);
       if (header.type != HEADER_8_BYTE) {
-        if (!rb_.Read(s, 4)) {
+        if (!io.i.Read(4)) {
           return false;
         }
-        header.stream_id = RL32((const uint8_t*)rb_.Data());
-        rb_.RemoveConsumed(4);
+        header.stream_id = RL32((const uint8_t*)io.i.Data());
+        io.i.RemoveConsumed(4);
       }
     }
   }
   if (header.ts == 0xffffff) {
-    if (!rb_.Read(s, 4)) {
+    if (!io.i.Read(4)) {
       return false;
     }
-    header.final_ts = RB32((const uint8_t*)rb_.Data());
-    rb_.RemoveConsumed(4);
+    header.final_ts = RB32((const uint8_t*)io.i.Data());
+    io.i.RemoveConsumed(4);
   } else {
     header.final_ts = header.ts;
   }
