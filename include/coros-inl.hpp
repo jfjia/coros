@@ -138,27 +138,6 @@ inline bool Buffer<N>::ReadNoWait() {
 }
 
 template<int N>
-inline bool Buffer<N>::Read8(uint8_t& val) {
-  if (!Read(1)) {
-    return false;
-  }
-  val = *((uint8_t*)Data());
-  RemoveConsumed(1);
-  return true;
-}
-
-template<int N>
-inline bool Buffer<N>::Write8(uint8_t val) {
-  uint8_t* o = (uint8_t*)Space(1);
-  if (!o) {
-    return false;
-  }
-  *o = val;
-  Commit(1);
-  return true;
-}
-
-template<int N>
 inline bool Buffer<N>::WriteExactly(const char* buf, int len) {
   if (!Drain()) {
     return false;

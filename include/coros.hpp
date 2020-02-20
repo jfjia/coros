@@ -128,8 +128,6 @@ public:
   bool Read(int min_len);
   bool ReadNoWait();
 
-  bool Read8(uint8_t& val);
-  bool Write8(uint8_t val);
   bool WriteExactly(const char* buf, int len);
 
 protected:

@@ -37,27 +37,27 @@ void Conn::ExitFn() {
 bool Conn::Handshake(IoBuf& io) {
   // C0
   uint8_t c0;
-  if (!io.i.Read8(c0)) {
+  if (!io.Read8(c0)) {
     return false;
   }
   MALOG_INFO("handshake, c0=" << std::to_string(c0));
-  if (!io.o.Write8(c0)) {
+  if (!io.Write8(c0)) {
     MALOG_ERROR("fail to send");
     return false;
   }
 
   // C1
-  if (!io.i.Read(RTMP_SIG_SIZE)) {
+  Challenge* c1;
+  if (!io.Read<Challenge>(c1, RTMP_SIG_SIZE)) {
     return false;
   }
-  Challenge* c1 = (Challenge*)io.i.Data();
   MALOG_INFO("handshake, c1 time: " << c1->time <<
              ", version: " << static_cast<uint32_t>(c1->version[0]) << "." <<
              static_cast<uint32_t>(c1->version[1]) << "." <<
              static_cast<uint32_t>(c1->version[2]) << "." <<
              static_cast<uint32_t>(c1->version[3]));
-  Challenge* s1 = (Challenge*)io.o.Space(sizeof(Challenge));
-  if (!s1) {
+  Challenge* s1;
+  if (!io.Write<Challenge>(s1, sizeof(Challenge))) {
     MALOG_ERROR("send failed");
     return false;
   }
@@ -66,33 +66,31 @@ bool Conn::Handshake(IoBuf& io) {
   s1->version[1] = 0;
   s1->version[2] = 0;
   s1->version[3] = 0;
-  io.o.Commit(sizeof(Challenge));
-  if (!io.o.Drain()) {
+
+  if (!io.Flush()) {
     MALOG_ERROR("send failed");
     return false;
   }
-  if (!io.o.WriteExactly((const char*)c1, RTMP_SIG_SIZE)) {
+  if (!io.Write((const char*)c1, RTMP_SIG_SIZE)) {
     return false;
   }
-  io.i.RemoveConsumed(RTMP_SIG_SIZE);
 
   // C2
-  if (!io.i.Read(RTMP_SIG_SIZE)) {
+  Challenge* c2;
+  if (!io.Read<Challenge>(c2, RTMP_SIG_SIZE)) {
     return false;
   }
-  Challenge* c2 = (Challenge*)io.i.Data();
   MALOG_INFO("handshake, c2 time: " << c2->time <<
              ", version: " << static_cast<uint32_t>(c2->version[0]) << "." <<
              static_cast<uint32_t>(c2->version[1]) << "." <<
              static_cast<uint32_t>(c2->version[2]) << "." <<
              static_cast<uint32_t>(c2->version[3]));
-  io.i.RemoveConsumed(RTMP_SIG_SIZE);
   return true;
 }
 
 bool Conn::ReadHeader(IoBuf& io, Header& header) {
   uint8_t flags;
-  if (!io.i.Read8(flags)) {
+  if (!io.Read8(flags)) {
     return false;
   }
 
@@ -108,34 +106,29 @@ bool Conn::ReadHeader(IoBuf& io, Header& header) {
   header.stream_id = headers_[header.channel].stream_id;
   header.ts = headers_[header.channel].ts;
   if (header.type != HEADER_1_BYTE) {
-    if (!io.i.Read(3)) {
+    if (!io.ReadBE24(header.ts)) {
       return false;
     }
-    header.ts = RB24((const uint8_t*)io.i.Data());
-    io.i.RemoveConsumed(3);
     if (header.type != HEADER_4_BYTE) {
-      if (!io.i.Read(4)) {
+      if (!io.ReadBE24(header.len)) {
         return false;
       }
-      header.len = RB24((const uint8_t*)io.i.Data());
-      io.i.RemoveConsumed(3);
-      header.msg_type = *((uint8_t*)io.i.Data());
-      io.i.RemoveConsumed(1);
+      if (!io.Read8(header.msg_type)) {
+        return false;
+      }
       if (header.type != HEADER_8_BYTE) {
-        if (!io.i.Read(4)) {
+        if (!io.ReadLE32(header.stream_id)) {
           return false;
         }
-        header.stream_id = RL32((const uint8_t*)io.i.Data());
-        io.i.RemoveConsumed(4);
       }
     }
   }
   if (header.ts == 0xffffff) {
-    if (!io.i.Read(4)) {
+    uint32_t ts;
+    if (!io.ReadBE32(ts)) {
       return false;
     }
-    header.final_ts = RB32((const uint8_t*)io.i.Data());
-    io.i.RemoveConsumed(4);
+    header.final_ts = static_cast<uint64_t>(ts);
   } else {
     header.final_ts = header.ts;
   }
