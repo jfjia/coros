@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include "coros.hpp"
 #include "rtmp_amf.hpp"
 
@@ -128,6 +129,7 @@ public:
 protected:
   bool Handshake(IoBuf& io);
   bool ReadHeader(IoBuf& io, Header& header);
+  bool ReadBody(IoBuf& io, Header& header, std::vector<uint8_t>& body);
 
 private:
   coros::Coroutine coro_;

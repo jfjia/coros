@@ -20,8 +20,16 @@ void Conn::Fn(uv_os_sock_t fd) {
     MALOG_INFO("handshake done");
     for (;;) {
       Header header;
+      std::vector<uint8_t> body;
       if (!ReadHeader(io, header)) {
         break;
+      }
+      if (!ReadBody(io, header, body)) {
+        break;
+      }
+      if (body.size() == header.len) {
+        body.clear();
+        MALOG_INFO("got packet: type=" << header.msg_type << ",chan=" << header.channel);
       }
     }
   }
@@ -139,5 +147,15 @@ bool Conn::ReadHeader(IoBuf& io, Header& header) {
   if (header.type != HEADER_1_BYTE) {
     headers_[header.channel] = header;
   }
+  return true;
+}
+
+bool Conn::ReadBody(IoBuf& io, Header& header, std::vector<uint8_t>& body) {
+  uint32_t chunk_size = std::min(uint32_t(header.len - body.size()), in_chunk_size_);
+  uint8_t* data;
+  if (!io.Read<uint8_t>(data, chunk_size)) {
+    return false;
+  }
+  body.insert(body.end(), data, data + chunk_size);
   return true;
 }
