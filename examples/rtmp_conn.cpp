@@ -18,9 +18,9 @@ void Conn::Fn(uv_os_sock_t fd) {
 
   if (Handshake(io)) {
     MALOG_INFO("handshake done");
+    std::vector<uint8_t> body;
     for (;;) {
       Header header;
-      std::vector<uint8_t> body;
       if (!ReadHeader(io, header)) {
         break;
       }
@@ -29,7 +29,7 @@ void Conn::Fn(uv_os_sock_t fd) {
       }
       if (body.size() == header.len) {
         body.clear();
-        MALOG_INFO("got packet: type=" << header.msg_type << ",chan=" << header.channel);
+        MALOG_INFO("got packet: type=" << int(header.msg_type) << ",chan=" << header.channel);
       }
     }
   }
@@ -152,6 +152,7 @@ bool Conn::ReadHeader(IoBuf& io, Header& header) {
 
 bool Conn::ReadBody(IoBuf& io, Header& header, std::vector<uint8_t>& body) {
   uint32_t chunk_size = std::min(uint32_t(header.len - body.size()), in_chunk_size_);
+  MALOG_INFO("body size=" << header.len << ",already read=" << body.size() << ",try to read=" << chunk_size);
   uint8_t* data;
   if (!io.Read<uint8_t>(data, chunk_size)) {
     return false;
