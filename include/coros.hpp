@@ -164,6 +164,9 @@ public:
   void EndCompute();
 
   void SetTimeout(int seconds);
+
+private:
+  friend class Scheduler;
   void CheckTimeout();
 
 private:
@@ -197,7 +200,7 @@ class Scheduler {
 public:
   static Scheduler* Get();
 
-  Scheduler(bool is_default, std::size_t stack_size = 0);
+  Scheduler(bool is_default, std::size_t stack_size = 0, int compute_threads_n = 2);
   ~Scheduler();
 
   std::size_t NextId();

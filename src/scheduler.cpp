@@ -9,13 +9,12 @@ namespace coros {
 
 static const int SWEEP_INTERVAL = 1000;
 static const int RECV_BUFFER_SIZE = 64 * 1024;
-static const int COMPUTE_THREADS_N = 2;
 
 thread_local Scheduler* local_sched = nullptr;
 
 class ComputeThreads {
 public:
-  void Start();
+  void Start(int compute_threads_n);
   void Stop();
   void Add(Coroutine* coro);
 
@@ -32,12 +31,12 @@ protected:
 
 ComputeThreads compute_threads;
 
-Scheduler::Scheduler(bool is_default, std::size_t stack_size)
+Scheduler::Scheduler(bool is_default, std::size_t stack_size, int compute_threads_n)
   : is_default_(is_default), stack_size_(stack_size) {
   if (is_default) {
     context::InitStack();
     loop_ptr_ = uv_default_loop();
-    compute_threads.Start();
+    compute_threads.Start(compute_threads_n);
   } else {
     uv_loop_init(&loop_);
     loop_ptr_ = &loop_;
@@ -264,8 +263,8 @@ Scheduler* Scheduler::Get() {
   return local_sched;
 }
 
-void ComputeThreads::Start() {
-  for (int i = 0; i < COMPUTE_THREADS_N; i++) {
+void ComputeThreads::Start(int compute_threads_n) {
+  for (int i = 0; i < compute_threads_n; i++) {
     threads_.emplace_back(std::bind(&ComputeThreads::Consume, this));
   }
 }
