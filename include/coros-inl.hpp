@@ -19,11 +19,6 @@ inline int Socket::ReadExactly(char* buf, int len) {
   return ReadAtLeast(buf, len, len);
 }
 
-inline Event Socket::Wait(int flags) {
-  coro_->GetScheduler()->Wait(coro_, *this, flags);
-  return coro_->GetEvent();
-}
-
 template<int N>
 inline Buffer<N>::Buffer(Socket& s) : s_(s) {
 }
@@ -116,20 +111,6 @@ inline bool Buffer<N>::Read(int min_len) {
     Compact();
   }
   int n = s_.ReadAtLeast(Space(), SpaceSize(), min_len - Size());
-  if (n <= 0) {
-    return false;
-  }
-  Commit(n);
-  return true;
-}
-
-template<int N>
-inline bool Buffer<N>::ReadNoWait() {
-  Compact();
-  if (SpaceSize() <= 0) {
-    return false;
-  }
-  int n = s_.ReadSomeNoWait(Space(), SpaceSize());
   if (n <= 0) {
     return false;
   }

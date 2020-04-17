@@ -191,8 +191,8 @@ bool Socket::ConnectHost(const std::string& host, int port) {
     return false;
   }
 
-  Event ev = Wait(WAIT_WRITABLE);
-  if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
+  Event ev = WaitWritable();
+  if (ev != EVENT_WRITABLE) {
     s_ = CloseSocket(s_);
     return false;
   }
@@ -222,8 +222,8 @@ bool Socket::ConnectIp(const std::string& ip, int port) {
     return false;
   }
 
-  Event ev = Wait(WAIT_WRITABLE);
-  if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
+  Event ev = WaitWritable();
+  if (ev != EVENT_WRITABLE) {
     s_ = CloseSocket(s_);
     return false;
   }
@@ -241,22 +241,11 @@ int Socket::ReadSome(char* data, int len) {
     if (!WouldBlock()) {
       return rc;
     }
-    Event ev = Wait(WAIT_READABLE);
-    if (ev != EVENT_READABLE && ev != EVENT_RWABLE) {
+    Event ev = WaitReadable();
+    if (ev != EVENT_READABLE) {
       return -1;
     }
   }
-}
-
-int Socket::ReadSomeNoWait(char* data, int len) {
-  int rc = ::recv(s_, data, len, 0);
-  if (rc > 0) {
-    return rc;
-  }
-  if (!WouldBlock()) {
-    return -1;
-  }
-  return 0;
 }
 
 int Socket::ReadAtLeast(char* data, int len, int min_len) {
@@ -287,8 +276,8 @@ int Socket::WriteSome(const char* data, int len) {
     if (!WouldBlock()) {
       return rc;
     }
-    Event ev = Wait(WAIT_WRITABLE);
-    if (ev != EVENT_WRITABLE && ev != EVENT_RWABLE) {
+    Event ev = WaitWritable();
+    if (ev != EVENT_WRITABLE) {
       return -1;
     }
   }
@@ -322,11 +311,53 @@ uv_os_sock_t Socket::Accept() {
     if (!WouldBlock()) {
       return -1;
     }
-    Event ev = Wait(WAIT_READABLE);
+    Event ev = WaitReadable();
     if (ev != EVENT_READABLE) {
       return -1;
     }
   }
+}
+
+Event Socket::WaitWritable() {
+  int events = 0;
+  events |= UV_WRITABLE;
+  events |= UV_DISCONNECT;
+  uv_poll_start(&poll_, events, [](uv_poll_t* w, int status, int events) {
+    if (status > 0) {
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+    } else if (events & UV_WRITABLE) {
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_WRITABLE);
+    } else if (events & UV_DISCONNECT) {
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+    }
+  });
+  coro_->SetTimeout(GetDeadline());
+  coro_->Suspend(STATE_WAITING);
+  uv_poll_stop(&poll_);
+  return coro_->GetEvent();
+}
+
+Event Socket::WaitReadable(Condition* cond) {
+  int events = 0;
+  events |= UV_READABLE;
+  events |= UV_DISCONNECT;
+  uv_poll_start(&poll_, events, [](uv_poll_t* w, int status, int events) {
+    if (status > 0) {
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+    } else if (events & EVENT_READABLE) {
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_READABLE);
+    } else if (events & UV_DISCONNECT) {
+      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+    }
+  });
+  coro_->SetTimeout(GetDeadline());
+  if (cond) {
+    cond->Wait(coro_);
+  } else {
+    coro_->Suspend(STATE_WAITING);
+  }
+  uv_poll_stop(&poll_);
+  return coro_->GetEvent();
 }
 
 }

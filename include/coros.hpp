@@ -59,19 +59,14 @@ enum Event {
   EVENT_JOIN = 4,
   EVENT_COMPUTE = 5,
   EVENT_COMPUTE_DONE = 6,
-  EVENT_HUP = 7,
-  EVENT_RWABLE = 8,
-  EVENT_CONT = 9,
-  EVENT_COND = 10,
-};
-
-enum {
-  WAIT_READABLE = 0x1,
-  WAIT_WRITABLE = 0x2
+  EVENT_CONT = 7,
+  EVENT_COND = 8,
+  EVENT_HUP = 9,
 };
 
 class Scheduler;
 class Coroutine;
+class Condition;
 
 class Socket {
   friend class Scheduler;
@@ -92,13 +87,13 @@ public:
   bool ConnectIp(const std::string& ip, int port);
 
   int ReadSome(char* buf, int len);
-  int ReadSomeNoWait(char* buf, int len);
   int ReadExactly(char* buf, int len);
   int ReadAtLeast(char* buf, int len, int min_len);
   int WriteSome(const char* buf, int len);
   int WriteExactly(const char* buf, int len);
 
-  Event Wait(int flags);
+  Event WaitReadable(Condition* cond = nullptr);
+  Event WaitWritable();
 
 protected:
   uv_os_sock_t s_;
@@ -126,7 +121,6 @@ public:
 
   bool Drain();
   bool Read(int min_len);
-  bool ReadNoWait();
 
   bool WriteExactly(const char* buf, int len);
 

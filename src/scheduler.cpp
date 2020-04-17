@@ -209,35 +209,6 @@ void Scheduler::Wait(Coroutine* coro, long millisecs) {
   coro->Suspend(STATE_WAITING);
 }
 
-void Scheduler::Wait(Coroutine* coro, Socket& s, int flags) {
-  int events = 0;
-  if (flags & WAIT_READABLE) {
-    events |= UV_READABLE;
-  }
-  if (flags & WAIT_WRITABLE) {
-    events |= UV_WRITABLE;
-  }
-  events |= UV_DISCONNECT;
-  uv_poll_start(&s.poll_, events, [](uv_poll_t* w, int status, int events) {
-    if (status > 0) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
-    } else if ((events & UV_READABLE) && (events & UV_WRITABLE)) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_RWABLE);
-    } else if (events & UV_READABLE) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_READABLE);
-    } else if (events & UV_WRITABLE) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_WRITABLE);
-    } else if (events & UV_DISCONNECT) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
-    } else {
-      //???TODO
-    }
-  });
-  s.coro_->SetTimeout(s.GetDeadline());
-  s.coro_->Suspend(STATE_WAITING);
-  uv_poll_stop(&s.poll_);
-}
-
 void Scheduler::Cleanup(CoroutineList& cl) {
   for (auto c : cl) {
     c->SetEvent(EVENT_CANCEL);
