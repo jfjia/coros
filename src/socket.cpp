@@ -344,7 +344,7 @@ Event Socket::WaitReadable(Condition* cond) {
   uv_poll_start(&poll_, events, [](uv_poll_t* w, int status, int events) {
     if (status != 0) {
       ((Socket*)w->data)->coro_->Wakeup(EVENT_POLLERR);
-    } else if (events & EVENT_READABLE) {
+    } else if (events & UV_READABLE) {
       ((Socket*)w->data)->coro_->Wakeup(EVENT_READABLE);
     } else if (events & UV_DISCONNECT) {
       ((Socket*)w->data)->coro_->Wakeup(EVENT_DISCONNECT);
