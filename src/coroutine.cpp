@@ -30,7 +30,7 @@ bool Coroutine::Create(Scheduler* sched,
 
 void Coroutine::Destroy() {
   if (joined_) {
-    joined_->SetEvent(EVENT_JOIN);
+    joined_->Wakeup(EVENT_JOIN);
   }
   sched_->DeallocateStack(stack_);
   exit_fn_();

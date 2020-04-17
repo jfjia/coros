@@ -144,14 +144,14 @@ inline void Coroutine::Join(Coroutine* coro) {
 }
 
 inline void Coroutine::Cancel() {
-  SetEvent(EVENT_CANCEL);
+  Wakeup(EVENT_CANCEL);
 }
 
 inline void Coroutine::Wait(long millisecs) {
   sched_->Wait(this, millisecs);
 }
 
-inline void Coroutine::SetEvent(Event new_event) {
+inline void Coroutine::Wakeup(Event new_event) {
   state_ = STATE_READY;
   event_ = new_event;
 }
@@ -222,13 +222,13 @@ inline void Condition::NotifyOne() {
   if (waiting_.size() > 0) {
     Coroutine* coro = waiting_.back();
     waiting_.pop_back();
-    coro->SetEvent(EVENT_COND);
+    coro->Wakeup(EVENT_COND);
   }
 }
 
 inline void Condition::NotifyAll() {
   for (auto it = waiting_.begin(); it != waiting_.end(); it++) {
-    (*it)->SetEvent(EVENT_COND);
+    (*it)->Wakeup(EVENT_COND);
   }
   waiting_.clear();
 }

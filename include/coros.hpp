@@ -52,16 +52,15 @@ enum State {
 };
 
 enum Event {
-  EVENT_CANCEL = 0,
-  EVENT_READABLE = 1,
-  EVENT_WRITABLE = 2,
-  EVENT_TIMEOUT = 3,
-  EVENT_JOIN = 4,
-  EVENT_COMPUTE = 5,
-  EVENT_COMPUTE_DONE = 6,
-  EVENT_CONT = 7,
-  EVENT_COND = 8,
-  EVENT_HUP = 9,
+  EVENT_WAKEUP = 0,
+  EVENT_CANCEL = 1,
+  EVENT_READABLE = 2,
+  EVENT_WRITABLE = 3,
+  EVENT_TIMEOUT = 4,
+  EVENT_JOIN = 5,
+  EVENT_COND = 6,
+  EVENT_POLLERR = 7,
+  EVENT_DISCONNECT = 8,
 };
 
 class Scheduler;
@@ -145,7 +144,7 @@ public:
 
   void Join(Coroutine* coro);
   void Cancel();
-  void SetEvent(Event new_event);
+  void Wakeup(Event new_event = EVENT_WAKEUP);
 
   State GetState() const;
   Event GetEvent() const;

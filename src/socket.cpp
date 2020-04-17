@@ -151,7 +151,7 @@ bool Socket::ListenByIp(const std::string& ip, int port, int backlog) {
 void Socket::Close() {
   if (s_ != BAD_SOCKET) {
     uv_close(reinterpret_cast<uv_handle_t*>(&poll_), [](uv_handle_t* h) {
-      ((Socket*)h->data)->coro_->SetEvent(EVENT_CONT);
+      ((Socket*)h->data)->coro_->Wakeup();
     });
     coro_->Suspend(STATE_WAITING);
     s_ = CloseSocket(s_);
@@ -309,11 +309,11 @@ uv_os_sock_t Socket::Accept() {
       return SetNonblocking(SetNoSigPipe(new_s));
     }
     if (!WouldBlock()) {
-      return -1;
+      return BAD_SOCKET;
     }
     Event ev = WaitReadable();
     if (ev != EVENT_READABLE) {
-      return -1;
+      return BAD_SOCKET;
     }
   }
 }
@@ -323,12 +323,12 @@ Event Socket::WaitWritable() {
   events |= UV_WRITABLE;
   events |= UV_DISCONNECT;
   uv_poll_start(&poll_, events, [](uv_poll_t* w, int status, int events) {
-    if (status > 0) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+    if (status != 0) {
+      ((Socket*)w->data)->coro_->Wakeup(EVENT_POLLERR);
     } else if (events & UV_WRITABLE) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_WRITABLE);
+      ((Socket*)w->data)->coro_->Wakeup(EVENT_WRITABLE);
     } else if (events & UV_DISCONNECT) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+      ((Socket*)w->data)->coro_->Wakeup(EVENT_DISCONNECT);
     }
   });
   coro_->SetTimeout(GetDeadline());
@@ -342,12 +342,12 @@ Event Socket::WaitReadable(Condition* cond) {
   events |= UV_READABLE;
   events |= UV_DISCONNECT;
   uv_poll_start(&poll_, events, [](uv_poll_t* w, int status, int events) {
-    if (status > 0) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+    if (status != 0) {
+      ((Socket*)w->data)->coro_->Wakeup(EVENT_POLLERR);
     } else if (events & EVENT_READABLE) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_READABLE);
+      ((Socket*)w->data)->coro_->Wakeup(EVENT_READABLE);
     } else if (events & UV_DISCONNECT) {
-      ((Socket*)w->data)->coro_->SetEvent(EVENT_HUP);
+      ((Socket*)w->data)->coro_->Wakeup(EVENT_DISCONNECT);
     }
   });
   coro_->SetTimeout(GetDeadline());

@@ -203,7 +203,7 @@ void Scheduler::Wait(Coroutine* coro, long millisecs) {
   uv_timer_start(&timer, [](uv_timer_t* w) {
     uv_timer_stop(w);
     uv_close(reinterpret_cast<uv_handle_t*>(w), [](uv_handle_t* handle) {
-      (reinterpret_cast<Coroutine*>(handle->data))->SetEvent(EVENT_TIMEOUT);
+      (reinterpret_cast<Coroutine*>(handle->data))->Wakeup(EVENT_TIMEOUT);
     });
   }, millisecs, 0);
   coro->Suspend(STATE_WAITING);
@@ -211,7 +211,7 @@ void Scheduler::Wait(Coroutine* coro, long millisecs) {
 
 void Scheduler::Cleanup(CoroutineList& cl) {
   for (auto c : cl) {
-    c->SetEvent(EVENT_CANCEL);
+    c->Wakeup(EVENT_CANCEL);
     c->Resume();
     c->Destroy();
   }
@@ -253,7 +253,7 @@ void ComputeThreads::Stop() {
   }
   threads_.clear();
   for (auto i : pending_) {
-    i->SetEvent(EVENT_CANCEL);
+    i->Wakeup(EVENT_CANCEL);
     i->Resume();
     i->Destroy();
   }
@@ -281,7 +281,6 @@ void ComputeThreads::Consume() {
       coro = pending_.back();
       pending_.pop_back();
     }
-    coro->SetEvent(EVENT_COMPUTE);
     coro->Resume();
     coro->GetScheduler()->PostCoroutine(coro, true);
   }
