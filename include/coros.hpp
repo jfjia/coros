@@ -3,12 +3,13 @@
 #include <uv.h>
 
 #include <cstddef>
+#include <cstring>
+#include <cassert>
+
 #include <functional>
 #include <string>
-#include <cstring>
 #include <mutex>
 #include <vector>
-#include <cassert>
 
 #if defined(_WIN32)
 #define BAD_SOCKET (uintptr_t)(~0)

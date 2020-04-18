@@ -19,9 +19,9 @@ inline uv_os_sock_t SetNoSigPipe(uv_os_sock_t s) {
 inline uv_os_sock_t SetNonblocking(uv_os_sock_t s) {
   if (s != BAD_SOCKET) {
 #ifdef _WIN32
-//TODO: libuv will set non-blocking
-    unsigned long on = 1;
-    ioctlsocket(s, FIONBIO, &on);
+    //--libuv will set non-blocking
+    //unsigned long on = 1;
+    //ioctlsocket(s, FIONBIO, &on);
 #else
     fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
 #endif
