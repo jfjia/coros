@@ -254,21 +254,6 @@ inline void Scheduler::BeginCompute(Coroutine* coro) {
 }
 
 template<int N>
-inline Schedulers<N>::Schedulers() : sched_(true) {
-  for (int i = 0; i < N; i++) {
-    threads_[i] = std::move(std::thread(std::bind(&Schedulers::Fn, this, i)));
-    // TODO: wait thread ready
-  }
-}
-
-template<int N>
-inline void Schedulers<N>::Fn(int n) {
-  Scheduler sched(false);
-  scheds_[n] = &sched;
-  sched.Run();
-}
-
-template<int N>
 inline void Schedulers<N>::Run() {
   sched_.Run();
   for (int i = 0; i < N; i++) {
@@ -289,4 +274,34 @@ inline Scheduler* Schedulers<N>::GetNext() {
   Scheduler* sched = scheds_[rr_index_ % N];
   rr_index_ ++;
   return sched;
+}
+
+template<int N>
+inline void Schedulers<N>::Fn(int n) {
+  Scheduler sched(false);
+  scheds_[n] = &sched;
+  {
+    std::lock_guard<std::mutex> lock{lock_};
+    created_ ++;
+    cond_.notify_one();
+  }
+  sched.Run();
+}
+
+template<int N>
+inline Schedulers<N>::Schedulers() : sched_(true) {
+  for (int i = 0; i < N; i++) {
+    scheds_[i] = nullptr;
+  }
+  for (int i = 0; i < N; i++) {
+    threads_[i] = std::move(std::thread(std::bind(&Schedulers::Fn, this, i)));
+  }
+  for (;;) {
+    std::unique_lock<std::mutex> lock{lock_};
+    if (created_ < N) {
+      cond_.wait(lock);
+      continue;
+    }
+    break;
+  }
 }

@@ -12,6 +12,7 @@
 #include <mutex>
 #include <vector>
 #include <thread>
+#include <condition_variable>
 
 #if defined(_WIN32)
 #define BAD_SOCKET (uintptr_t)(~0)
@@ -262,6 +263,9 @@ protected:
   std::thread threads_[N];
   Scheduler* scheds_[N];
   int rr_index_{ 0 };
+  std::mutex lock_;
+  std::condition_variable cond_;
+  int created_{ 0 };
 };
 
 #include "coros-inl.hpp"
