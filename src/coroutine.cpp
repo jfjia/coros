@@ -7,11 +7,14 @@ namespace coros {
 bool Coroutine::Create(Scheduler* sched,
                        const std::function<void()>& fn,
                        const std::function<void()>& exit_fn) {
+  if (!sched) {
+    sched = Scheduler::Get();
+  }
   sched_ = sched;
-  id_ = sched->NextId();
+  id_ = NextId() * 1000 + sched_->GetId();
   fn_ = fn;
   exit_fn_ = exit_fn;
-  stack_ = sched->AllocateStack();
+  stack_ = context::AllocateStack(sched->GetStackSize());
   if (!stack_.sp) {
     return false;
   }
@@ -24,7 +27,11 @@ bool Coroutine::Create(Scheduler* sched,
     ((Coroutine*)t.data)->state_ = STATE_DONE;
     context::jump_fcontext(((Coroutine*)t.data)->caller_, NULL);
   });
-  sched->AddCoroutine(this);
+  if (sched_ != Scheduler::Get()) {
+    sched_->PostCoroutine(this, false);
+  } else {
+    sched->AddCoroutine(this);
+  }
   return true;
 }
 
@@ -32,8 +39,13 @@ void Coroutine::Destroy() {
   if (joined_) {
     joined_->Wakeup(EVENT_JOIN);
   }
-  sched_->DeallocateStack(stack_);
+  context::DeallocateStack(stack_);
   exit_fn_();
+}
+
+std::size_t Coroutine::NextId() {
+  static std::atomic<std::size_t> next_id{ 1 };
+  return next_id.fetch_add(1);
 }
 
 }

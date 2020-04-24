@@ -2,6 +2,8 @@
 #include "malog.h"
 #include <thread>
 
+#define NUM_WORKERS 2
+
 class MyCo {
 public:
   bool Start(coros::Scheduler* sched) {
@@ -29,11 +31,14 @@ private:
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
-  coros::Scheduler sched(true);
+
+  coros::Schedulers<NUM_WORKERS> scheds;
+  scheds.Start();
   for (int i = 0; i < 100; i++) {
     MyCo* co = new MyCo();
-    co->Start(&sched);
+    co->Start(scheds.GetNext());
   }
-  sched.Run();
+  scheds.Run();
+  scheds.Stop();
   return 0;
 }

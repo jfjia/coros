@@ -2,11 +2,14 @@
 #include "malog.h"
 #include <string.h>
 #include <memory.h>
+#include <thread>
+
+#define NUM_WORKERS 2
 
 class Conn {
 public:
-  bool Start(uv_os_sock_t fd) {
-    if (!coro_.Create(coros::Scheduler::Get(), std::bind(&Conn::Fn, this, fd), std::bind(&Conn::ExitFn, this))) {
+  bool Start(coros::Scheduler* sched, uv_os_sock_t fd) {
+    if (!coro_.Create(sched, std::bind(&Conn::Fn, this, fd), std::bind(&Conn::ExitFn, this))) {
       return false;
     }
     return true;
@@ -43,11 +46,13 @@ public:
 
 private:
   coros::Coroutine coro_;
+  std::string id_;
 };
 
 class Listener {
 public:
-  bool Start() {
+  bool Start(coros::Schedulers<NUM_WORKERS>* scheds) {
+    scheds_ = scheds;
     if (!coro_.Create(coros::Scheduler::Get(), std::bind(&Listener::Fn, this), std::bind(&Listener::ExitFn, this))) {
       return false;
     }
@@ -64,7 +69,7 @@ public:
         break;
       }
       Conn* c = new Conn();
-      c->Start(s_new);
+      c->Start(scheds_->GetNext(), s_new);
     }
   }
 
@@ -73,13 +78,15 @@ public:
 
 protected:
   coros::Coroutine coro_;
+  coros::Schedulers<NUM_WORKERS>* scheds_;
 };
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
-  coros::Scheduler sched(true);
+  coros::Schedulers<NUM_WORKERS> scheds;
+  scheds.Start();
   Listener l;
-  l.Start();
-  sched.Run();
+  l.Start(&scheds);
+  scheds.Run();
   return 0;
 }

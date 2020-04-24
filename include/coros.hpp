@@ -6,10 +6,12 @@
 #include <cstring>
 #include <cassert>
 
+#include <atomic>
 #include <functional>
 #include <string>
 #include <mutex>
 #include <vector>
+#include <thread>
 
 #if defined(_WIN32)
 #define BAD_SOCKET (uintptr_t)(~0)
@@ -162,6 +164,7 @@ public:
 private:
   friend class Scheduler;
   void CheckTimeout();
+  static std::size_t NextId();
 
 private:
   context::fcontext_t ctx_{ nullptr };
@@ -197,10 +200,6 @@ public:
   Scheduler(bool is_default, std::size_t stack_size = 0, int compute_threads_n = 2);
   ~Scheduler();
 
-  std::size_t NextId();
-
-  context::Stack AllocateStack();
-  void DeallocateStack(context::Stack& stack);
   void AddCoroutine(Coroutine* coro); // for current thread
   void PostCoroutine(Coroutine* coro, bool is_compute = false); // for different thread
   void Wait(Coroutine* coro, long millisecs);
@@ -210,6 +209,10 @@ public:
 
   Coroutine* GetCurrent() const;
   uv_loop_t* GetLoop();
+  std::size_t GetStackSize() const;
+  std::size_t GetId() const;
+
+  void Stop(bool graceful);
 
 protected:
   void Pre();
@@ -218,9 +221,11 @@ protected:
   void Sweep();
   void RunCoros();
   void Cleanup(CoroutineList& cl);
+  static std::size_t NextId();
 
 protected:
   bool is_default_;
+  std::size_t id_{ 0 };
   std::size_t stack_size_;
   uv_loop_t loop_;
   uv_loop_t* loop_ptr_{ nullptr };
@@ -235,6 +240,30 @@ protected:
   int outstanding_{ 0 };
   CoroutineList posted_;
   CoroutineList compute_done_;
+  std::atomic<bool> shutdown_{ false };
+  std::atomic<bool> graceful_{ false };
+};
+
+template<int N>
+class Schedulers {
+public:
+  Schedulers();
+  ~Schedulers();
+
+  void Start();
+  void Run();
+  void Stop();
+
+  Scheduler* GetNext();
+
+protected:
+  void Fn(int n);
+
+protected:
+  Scheduler sched_;
+  std::thread threads_[N];
+  Scheduler* scheds_[N];
+  int rr_index_{ 0 };
 };
 
 #include "coros-inl.hpp"

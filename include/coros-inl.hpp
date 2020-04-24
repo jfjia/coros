@@ -241,14 +241,60 @@ inline uv_loop_t* Scheduler::GetLoop() {
   return loop_ptr_;
 }
 
-inline context::Stack Scheduler::AllocateStack() {
-  return context::AllocateStack(stack_size_);
+inline std::size_t Scheduler::GetStackSize() const {
+  return stack_size_;
 }
 
-inline void Scheduler::DeallocateStack(context::Stack& stack) {
-  context::DeallocateStack(stack);
+inline std::size_t Scheduler::GetId() const {
+  return id_;
 }
 
 inline void Scheduler::BeginCompute(Coroutine* coro) {
   coro->Suspend(STATE_COMPUTE);
+}
+
+template<int N>
+inline Schedulers<N>::Schedulers() : sched_(true) {
+}
+
+template<int N>
+inline void Schedulers<N>::Start() {
+  for (int i = 0; i < N; i++) {
+    threads_[i] = std::move(std::thread(std::bind(&Schedulers::Fn, this, i)));
+  }
+  //TODO: wait all scheders ready
+}
+
+template<int N>
+inline Schedulers<N>::~Schedulers() {
+}
+
+template<int N>
+inline void Schedulers<N>::Stop() {
+  for (int i = 0; i < N; i++) {
+    scheds_[i]->Stop(true);
+  }
+
+  for (int i = 0; i < N; i++) {
+    threads_[i].join();
+  }
+}
+
+template<int N>
+inline void Schedulers<N>::Fn(int n) {
+  Scheduler sched(false);
+  scheds_[n] = &sched;
+  sched.Run();
+}
+
+template<int N>
+inline void Schedulers<N>::Run() {
+  sched_.Run();
+}
+
+template<int N>
+inline Scheduler* Schedulers<N>::GetNext() {
+  Scheduler* sched = scheds_[rr_index_ % N];
+  rr_index_ ++;
+  return sched;
 }

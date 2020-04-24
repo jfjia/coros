@@ -68,6 +68,7 @@ Scheduler::Scheduler(bool is_default, std::size_t stack_size, int compute_thread
   }, SWEEP_INTERVAL, SWEEP_INTERVAL);
 
   local_sched = this;
+  id_ = NextId();
 }
 
 void Scheduler::Pre() {
@@ -128,11 +129,6 @@ Scheduler::~Scheduler() {
   }
 }
 
-std::size_t Scheduler::NextId() {
-  static std::atomic<std::size_t> next_id{ 1 };
-  return next_id.fetch_add(1);
-}
-
 void Scheduler::AddCoroutine(Coroutine* coro) {
   switch (coro->GetState()) {
   case STATE_READY:
@@ -191,8 +187,27 @@ void Scheduler::RunCoros() {
       i++;
     }
   }
-  if (waiting_.size() == 0 && outstanding_ == 0) {
-    uv_stop(loop_ptr_);
+  if (is_default_) {
+    if (waiting_.size() == 0 && outstanding_ == 0) {
+      uv_stop(loop_ptr_);
+    }
+  }
+  if (shutdown_) {
+    if (graceful_) {
+      if (waiting_.size() == 0 && outstanding_ == 0) {
+        uv_stop(loop_ptr_);
+      }
+    } else {
+      uv_stop(loop_ptr_);
+    }
+  }
+}
+
+void Scheduler::Stop(bool graceful) {
+  graceful_ = graceful;
+  shutdown_ = true;
+  if (Get() != this) {
+    uv_async_send(&async_);
   }
 }
 
@@ -284,6 +299,11 @@ void ComputeThreads::Consume() {
     coro->Resume();
     coro->GetScheduler()->PostCoroutine(coro, true);
   }
+}
+
+std::size_t Scheduler::NextId() {
+  static std::atomic<std::size_t> next_id{ 1 };
+  return next_id.fetch_add(1);
 }
 
 }
