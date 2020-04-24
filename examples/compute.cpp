@@ -11,17 +11,17 @@ public:
   }
 
   void Fn() {
-    MALOG_INFO("coro[" << coro_.GetId() << "]: fn()");
+    MALOG_INFO("coro-" << coro_.GetId() << ": fn()");
     coro_.Wait(500);
-    MALOG_INFO("coro[" << coro_.GetId() << "]: wait()");
+    MALOG_INFO("coro-" << coro_.GetId() << ": wait()");
     coro_.BeginCompute();
-    MALOG_INFO("coro[" << coro_.GetId() << "]: run in compute thread-" << std::this_thread::get_id());
+    MALOG_INFO("coro-" << coro_.GetId() << ": run in compute thread-" << std::this_thread::get_id());
     coro_.EndCompute();
-    MALOG_INFO("coro[" << coro_.GetId() << "]: back in coro thread-" << std::this_thread::get_id());
+    MALOG_INFO("coro-" << coro_.GetId() << ": back in coro thread-" << std::this_thread::get_id());
   }
 
   void ExitFn() {
-    MALOG_INFO("coro[" << coro_.GetId() << "]: exit_fn()");
+    MALOG_INFO("coro-" << coro_.GetId() << ": exit_fn()");
     delete this;
   }
 
@@ -33,12 +33,10 @@ int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
 
   coros::Schedulers<NUM_WORKERS> scheds;
-  scheds.Start();
   for (int i = 0; i < 100; i++) {
     MyCo* co = new MyCo();
     co->Start(scheds.GetNext());
   }
   scheds.Run();
-  scheds.Stop();
   return 0;
 }

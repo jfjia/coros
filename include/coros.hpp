@@ -248,13 +248,11 @@ template<int N>
 class Schedulers {
 public:
   Schedulers();
-  ~Schedulers();
 
-  void Start();
-  void Run();
-  void Stop();
-
+  Scheduler* GetDefault();
   Scheduler* GetNext();
+
+  void Run();
 
 protected:
   void Fn(int n);

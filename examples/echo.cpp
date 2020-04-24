@@ -21,17 +21,17 @@ public:
     s.SetDeadline(30);
     for (;;) {
       int len = s.ReadSome(buf, 256);
-      MALOG_INFO("coro[" << coro_.GetId() << "]: in " << len << " bytes");
+      MALOG_INFO("coro-" << coro_.GetId() << ": in " << len << " bytes");
       if (len <= 0) {
-        MALOG_INFO("coro[" << coro_.GetId() << "] read fail: " << len);
+        MALOG_INFO("coro-" << coro_.GetId() << ": read fail: " << len);
         break;
       }
       len = s.WriteExactly(buf, len);
       if (len <= 0) {
-        MALOG_ERROR("coro[" << coro_.GetId() << "] conn broken");
+        MALOG_ERROR("coro-" << coro_.GetId() << ": conn broken");
         break;
       }
-      MALOG_INFO("coro[" << coro_.GetId() << "] out " << len << "bytes");
+      MALOG_INFO("coro-" << coro_.GetId() << ": out " << len << "bytes");
       if (strncmp(buf, "exit", 4) == 0) {
         break;
       }
@@ -40,7 +40,7 @@ public:
   }
 
   void ExitFn() {
-    MALOG_INFO("coro[" << coro_.GetId() << "] exit");
+    MALOG_INFO("coro-" << coro_.GetId() << ": exit");
     delete this;
   }
 
@@ -64,7 +64,7 @@ public:
     s.ListenByIp("0.0.0.0", 9090);
     for (;;) {
       uv_os_sock_t s_new = s.Accept();
-      MALOG_INFO("coro[" << coro_.GetId() << ": accept new " << s_new);
+      MALOG_INFO("coro-" << coro_.GetId() << ": accept new " << s_new);
       if (s_new == BAD_SOCKET) {
         break;
       }
@@ -84,9 +84,10 @@ protected:
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
   coros::Schedulers<NUM_WORKERS> scheds;
-  scheds.Start();
+
   Listener l;
   l.Start(&scheds);
+
   scheds.Run();
   return 0;
 }
