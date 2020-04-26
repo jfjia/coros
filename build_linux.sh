@@ -8,4 +8,5 @@ cd build_linux
 cmake ..
 make clean
 make -j2 >1.log 2>2.log
+cat 2.log
 cd ..

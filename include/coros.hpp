@@ -52,7 +52,7 @@ enum State {
   STATE_RUNNING = 1,
   STATE_WAITING = 2,
   STATE_COMPUTE = 3,
-  STATE_DONE = 4
+  STATE_DONE = 4,
 };
 
 enum Event {
@@ -214,6 +214,7 @@ public:
   std::size_t GetId() const;
 
   void Stop(bool graceful);
+  void SetTightLoop(int tight_loop);
 
 protected:
   void Pre();
@@ -243,12 +244,12 @@ protected:
   CoroutineList compute_done_;
   std::atomic<bool> shutdown_{ false };
   std::atomic<bool> graceful_{ false };
+  int tight_loop_{ 256 };
 };
 
-template<int N>
 class Schedulers {
 public:
-  Schedulers();
+  Schedulers(int N);
 
   Scheduler* GetDefault();
   Scheduler* GetNext();
@@ -260,8 +261,9 @@ protected:
 
 protected:
   Scheduler sched_;
-  std::thread threads_[N];
-  Scheduler* scheds_[N];
+  int N_;
+  std::vector<std::thread> threads_;
+  std::vector<Scheduler*> scheds_;
   int rr_index_{ 0 };
   std::mutex lock_;
   std::condition_variable cond_;

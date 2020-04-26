@@ -4,13 +4,14 @@
 #include <memory.h>
 #include <thread>
 
-#define NUM_WORKERS 2
-
 std::atomic<std::size_t> in_bytes;
 std::atomic<std::size_t> out_bytes;
 
 bool is_server = true;
-std::string host;
+std::string host = "127.0.0.1";
+int port = 9090;
+int clients = 100;
+int threads = 2;
 
 class Conn {
 public:
@@ -34,7 +35,7 @@ public:
     coros::Socket s;
     char buf[256];
     MALOG_INFO("coro=" << coro_.GetId() << ", connect " << host);
-    if (s.ConnectIp(host, 9090)) {
+    if (s.ConnectIp(host, port)) {
       MALOG_INFO("coro=" << coro_.GetId() << ", connected");
       s.WriteExactly(buf, 256);
       out_bytes += 256;
@@ -49,8 +50,10 @@ public:
         if (len <= 0) {
           break;
         }
+        coro_.Nice();
       }
       s.Close();
+      MALOG_INFO("coro=" << coro_.GetId() << ", closed");
     }
   }
 
@@ -68,6 +71,7 @@ public:
       if (len <= 0) {
         break;
       }
+      coro_.Nice();
     }
     s.Close();
   }
@@ -82,7 +86,7 @@ private:
 
 class Listener {
 public:
-  bool Start(coros::Schedulers<NUM_WORKERS>* scheds) {
+  bool Start(coros::Schedulers* scheds) {
     scheds_ = scheds;
     if (!coro_.Create(scheds->GetDefault(), std::bind(&Listener::Fn, this), std::bind(&Listener::ExitFn, this))) {
       return false;
@@ -92,7 +96,7 @@ public:
 
   void Fn() {
     coros::Socket s;
-    s.ListenByIp("0.0.0.0", 9090);
+    s.ListenByIp("0.0.0.0", port);
     for (;;) {
       uv_os_sock_t s_new = s.Accept();
       if (s_new == BAD_SOCKET) {
@@ -104,21 +108,22 @@ public:
   }
 
   void ExitFn() {
+    delete this;
   }
 
 protected:
   coros::Coroutine coro_;
-  coros::Schedulers<NUM_WORKERS>* scheds_;
+  coros::Schedulers* scheds_;
 };
 
 void usage() {
-  MALOG_INFO("usage: pingpong -c 127.0.0.1 -p 9090");
-  MALOG_INFO("       pingpong -d");
+  MALOG_INFO("usage: pingpong -c 127.0.0.1 -p 9090 -n 100 -t 2");
+  MALOG_INFO("       pingpong -d -p 9090 -t 2");
 }
 
 class Guard {
 public:
-  bool Start(coros::Schedulers<NUM_WORKERS>* scheds) {
+  bool Start(coros::Schedulers* scheds) {
     scheds_ = scheds;
     if (!coro_.Create(scheds->GetDefault(), std::bind(&Guard::Fn, this), std::bind(&Guard::ExitFn, this))) {
       return false;
@@ -127,26 +132,29 @@ public:
   }
 
   void Fn() {
-    MALOG_INFO("Create 100 clients");
-    for (int i = 0; i < 100; i++) {
+    MALOG_INFO("Create " << clients << " clients");
+    for (int i = 0; i < clients; i++) {
       Conn* c = new Conn();
       c->Start(scheds_->GetNext());
     }
 
+    int nsecs = 0;
     for (;;) {
       coro_.Wait(1000);
+      nsecs ++;
       std::size_t in = in_bytes;
       std::size_t out = out_bytes;
-      MALOG_INFO("in=" << in << ", out=" << out);
+      MALOG_INFO("in=" << (in / nsecs) << " bytes per second, out=" << (out / nsecs) << " bytes per second");
     }
   }
 
   void ExitFn() {
+    delete this;
   }
 
 protected:
   coros::Coroutine coro_;
-  coros::Schedulers<NUM_WORKERS>* scheds_;
+  coros::Schedulers* scheds_;
 };
 
 int main(int argc, char** argv) {
@@ -165,11 +173,35 @@ int main(int argc, char** argv) {
         usage();
         exit(1);
       }
+    } else if (arg == "-p") {
+      if (argc > i + 1) {
+        i ++;
+        port = atoi(argv[i]);
+      } else {
+        usage();
+        exit(1);
+      }
+    } else if (arg == "-n") {
+      if (argc > i + 1) {
+        i ++;
+        clients = atoi(argv[i]);
+      } else {
+        usage();
+        exit(1);
+      }
+    } else if (arg == "-t") {
+      if (argc > i + 1) {
+        i ++;
+        threads = atoi(argv[i]);
+      } else {
+        usage();
+        exit(1);
+      }
     }
   }
 
-  coros::Schedulers<NUM_WORKERS> scheds;
-  scheds.Start();
+  coros::Schedulers scheds(threads);
+
   if (is_server) {
     MALOG_INFO("Start pingpoing server");
     Listener l;

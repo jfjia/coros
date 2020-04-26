@@ -163,7 +163,8 @@ void Scheduler::Run() {
 }
 
 void Scheduler::RunCoros() {
-  while (ready_.size() > 0) {
+  int loop = ready_.size() * tight_loop_;
+  while (loop > 0 && ready_.size() > 0) {
     for (std::size_t i = 0; i < ready_.size();) {
       Coroutine* c = ready_[i];
       current_ = c;
@@ -184,7 +185,9 @@ void Scheduler::RunCoros() {
       }
       i++;
     }
+    loop --;
   }
+
   if (is_default_) {
     if (waiting_.size() == 0 && outstanding_ == 0) {
       uv_stop(loop_ptr_);
@@ -302,6 +305,48 @@ void ComputeThreads::Consume() {
 std::size_t Scheduler::NextId() {
   static std::atomic<std::size_t> next_id{ 1 };
   return next_id.fetch_add(1);
+}
+
+void Schedulers::Run() {
+  sched_.Run();
+  for (int i = 0; i < N_; i++) {
+    scheds_[i]->Stop(true);
+  }
+  for (int i = 0; i < N_; i++) {
+    threads_[i].join();
+  }
+  scheds_.clear();
+  threads_.clear();
+}
+
+void Schedulers::Fn(int n) {
+  Scheduler sched(false);
+  scheds_[n] = &sched;
+  {
+    std::lock_guard<std::mutex> lock{lock_};
+    created_ ++;
+    cond_.notify_one();
+  }
+  sched.Run();
+}
+
+Schedulers::Schedulers(int N) : sched_(true), N_(N) {
+  scheds_.resize(N);
+  threads_.resize(N);
+  for (int i = 0; i < N; i++) {
+    scheds_[i] = nullptr;
+  }
+  for (int i = 0; i < N; i++) {
+    threads_[i] = std::move(std::thread(std::bind(&Schedulers::Fn, this, i)));
+  }
+  for (;;) {
+    std::unique_lock<std::mutex> lock{lock_};
+    if (created_ < N) {
+      cond_.wait(lock);
+      continue;
+    }
+    break;
+  }
 }
 
 }
