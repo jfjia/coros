@@ -71,11 +71,55 @@ inline uv_os_sock_t CloseSocket(uv_os_sock_t s) {
   return BAD_SOCKET;
 }
 
-inline bool WouldBlock() {
+inline int ErrorCode() {
 #ifdef _WIN32
-  return WSAGetLastError() == WSAEWOULDBLOCK;
+  return WSAGetLastError();
 #else
-  return errno == EWOULDBLOCK || errno == EINPROGRESS;
+  return errno;
+#endif
+}
+
+inline bool IsEAGAIN(int e) {
+#ifdef _WIN32
+  return (e == WSAEWOULDBLOCK) || (e == EAGAIN);
+#else
+#if EAGAIN == EWOULDBLOCK
+  return (e == EAGAIN);
+#else
+  return (e == EAGAIN) || (e == EWOULDBLOCK);
+#endif
+#endif
+}
+
+inline bool ReadWriteRetriable(int e) {
+#ifdef _WIN32
+  return (e == WSAEWOULDBLOCK) || (e == WSAEINTR);
+#else
+  return (e == EINTR) || IsEAGAIN(e);
+#endif
+}
+
+inline bool ConnectRetriable(int e) {
+#ifdef _WIN32
+  return (e == WSAEWOULDBLOCK) || (e == WSAEINTR) || (e == WSAEINPROGRESS) || (e == WSAEINVAL);
+#else
+  return (e == EINTR) || (e == EINPROGRESS);
+#endif
+}
+
+inline bool ConnectRefused(int e) {
+#ifdef _WIN32
+  return (e == WSAECONNREFUSED);
+#else
+  return (e == ECONNREFUSED);
+#endif
+}
+
+inline bool AcceptRetriable(int e) {
+#ifdef _WIN32
+  return ReadWriteRetriable(e);
+#else
+  return (e == EINTR) || IsEAGAIN(e) || (e == ECONNABORTED);
 #endif
 }
 
@@ -186,7 +230,7 @@ bool Socket::ConnectHost(const std::string& host, int port) {
     return true;
   }
 
-  if (!WouldBlock()) {
+  if (!ConnectRetriable(ErrorCode())) {
     s_ = CloseSocket(s_);
     return false;
   }
@@ -217,7 +261,7 @@ bool Socket::ConnectIp(const std::string& ip, int port) {
     return true;
   }
 
-  if (!WouldBlock()) {
+  if (!ConnectRetriable(ErrorCode())) {
     s_ = CloseSocket(s_);
     return false;
   }
@@ -242,7 +286,7 @@ int Socket::ReadSome(char* data, int len) {
     if (rc >= 0) {
       return rc;
     }
-    if (!WouldBlock()) {
+    if (!ReadWriteRetriable(ErrorCode())) {
       return rc;
     }
     Event ev = WaitReadable();
@@ -280,7 +324,7 @@ int Socket::WriteSome(const char* data, int len) {
     if (rc > 0) {
       return rc;
     }
-    if (!WouldBlock()) {
+    if (!ReadWriteRetriable(ErrorCode())) {
       return rc;
     }
     Event ev = WaitWritable();
@@ -318,7 +362,7 @@ uv_os_sock_t Socket::Accept() {
     if (new_s != BAD_SOCKET) {
       return SetNonblocking(SetNoSigPipe(new_s));
     }
-    if (!WouldBlock()) {
+    if (!AcceptRetriable(ErrorCode())) {
       return BAD_SOCKET;
     }
     Event ev = WaitReadable();

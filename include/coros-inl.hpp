@@ -254,8 +254,9 @@ inline std::size_t Scheduler::GetId() const {
   return id_;
 }
 
-inline void Scheduler::SetTightLoop(int tight_loop) {
+inline void Scheduler::SetScheduleParams(int tight_loop, int coro_buget) {
   tight_loop_ = tight_loop;
+  coro_buget_ = coro_buget;
 }
 
 inline void Scheduler::BeginCompute(Coroutine* coro) {

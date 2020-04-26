@@ -216,7 +216,7 @@ public:
   std::size_t GetId() const;
 
   void Stop(bool graceful);
-  void SetTightLoop(int tight_loop);
+  void SetScheduleParams(int tight_loop, int coro_buget);
 
 protected:
   void Pre();
@@ -246,7 +246,7 @@ protected:
   CoroutineList compute_done_;
   std::atomic<bool> shutdown_{ false };
   std::atomic<bool> graceful_{ false };
-  int tight_loop_{ 256 };
+  int tight_loop_{ 512 };
   int coro_buget_{ 32 };
 };
 

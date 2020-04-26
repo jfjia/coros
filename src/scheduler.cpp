@@ -163,36 +163,38 @@ void Scheduler::Run() {
 }
 
 void Scheduler::RunCoros() {
-  int loop = tight_loop_;
-  for (auto i : ready_) {
-    i->buget_ = coro_buget_;
-  }
-  while (loop > 0 && ready_.size() > 0) {
-    for (std::size_t i = 0; i < ready_.size();) {
-      Coroutine* c = ready_[i];
-      current_ = c;
-      c->Resume();
-      current_ = nullptr;
-      if (c->GetState() == STATE_DONE) {
-        c->Destroy();
-        FastDelVectorItem<Coroutine*>(ready_, i);
-        continue;
-      } else if (c->GetState() == STATE_WAITING) {
-        waiting_.push_back(c);
-        FastDelVectorItem<Coroutine*>(ready_, i);
-        continue;
-      } else if (c->GetState() == STATE_COMPUTE) {
-        FastDelVectorItem<Coroutine*>(ready_, i);
-        outstanding_ ++;
-        compute_threads.Add(c);
-        continue;
-      } else if (c->GetState() == STATE_READY) {
-        c->buget_ = coro_buget_;
-        // fall through to next coroutine
-      }
-      i++;
+  if (ready_.size() > 0) {
+    int loop = tight_loop_ * ready_.size();
+    for (auto i : ready_) {
+      i->buget_ = coro_buget_;
     }
-    loop --;
+    while (loop > 0 && ready_.size() > 0) {
+      for (std::size_t i = 0; i < ready_.size();) {
+        Coroutine* c = ready_[i];
+        current_ = c;
+        c->Resume();
+        current_ = nullptr;
+        if (c->GetState() == STATE_DONE) {
+          c->Destroy();
+          FastDelVectorItem<Coroutine*>(ready_, i);
+          continue;
+        } else if (c->GetState() == STATE_WAITING) {
+          waiting_.push_back(c);
+          FastDelVectorItem<Coroutine*>(ready_, i);
+          continue;
+        } else if (c->GetState() == STATE_COMPUTE) {
+          FastDelVectorItem<Coroutine*>(ready_, i);
+          outstanding_ ++;
+          compute_threads.Add(c);
+          continue;
+        } else if (c->GetState() == STATE_READY) {
+          c->buget_ = coro_buget_;
+          // fall through to next coroutine
+        }
+        i++;
+      }
+      loop --;
+    }
   }
 
   if (is_default_) {
