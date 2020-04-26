@@ -140,7 +140,8 @@ public:
 
   bool Create(Scheduler* sched,
               const std::function<void()>& fn,
-              const std::function<void()>& exit_fn);
+              const std::function<void()>& exit_fn,
+              std::size_t stack_size = 0);
   void Destroy();
 
   void Resume();

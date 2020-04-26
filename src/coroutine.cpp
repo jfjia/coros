@@ -6,7 +6,8 @@ namespace coros {
 
 bool Coroutine::Create(Scheduler* sched,
                        const std::function<void()>& fn,
-                       const std::function<void()>& exit_fn) {
+                       const std::function<void()>& exit_fn,
+                       std::size_t stack_size) {
   if (!sched) {
     sched = Scheduler::Get();
   }
@@ -14,7 +15,7 @@ bool Coroutine::Create(Scheduler* sched,
   id_ = NextId() * 1000 + sched_->GetId();
   fn_ = fn;
   exit_fn_ = exit_fn;
-  stack_ = context::AllocateStack(sched->GetStackSize());
+  stack_ = context::AllocateStack(stack_size ? stack_size : sched->GetStackSize());
   if (!stack_.sp) {
     return false;
   }
