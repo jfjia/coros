@@ -75,7 +75,7 @@ inline bool WouldBlock() {
 #ifdef _WIN32
   return WSAGetLastError() == WSAEWOULDBLOCK;
 #else
-  return errno == EWOULDBLOCK;// || errno == EAGAIN;
+  return errno == EWOULDBLOCK || errno == EINPROGRESS;
 #endif
 }
 
@@ -191,13 +191,14 @@ bool Socket::ConnectHost(const std::string& host, int port) {
     return false;
   }
 
+  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
+
   Event ev = WaitWritable();
   if (ev != EVENT_WRITABLE) {
     s_ = CloseSocket(s_);
     return false;
   }
 
-  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
   return true;
 }
 
@@ -212,7 +213,6 @@ bool Socket::ConnectIp(const std::string& ip, int port) {
   addr.sin_addr.s_addr = inet_addr(ip.c_str());
   addr.sin_port = htons(port);
   int rc = ::connect(s_, (struct sockaddr*)&addr, sizeof(addr));
-
   if (rc == 0) {
     return true;
   }
@@ -222,13 +222,14 @@ bool Socket::ConnectIp(const std::string& ip, int port) {
     return false;
   }
 
+  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
+
   Event ev = WaitWritable();
   if (ev != EVENT_WRITABLE) {
     s_ = CloseSocket(s_);
     return false;
   }
 
-  uv_poll_init_socket(coro_->GetScheduler()->GetLoop(), &poll_, s_);
   return true;
 }
 
