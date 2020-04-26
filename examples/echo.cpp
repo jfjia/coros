@@ -38,11 +38,6 @@ public:
       if (strncmp(buf, "exit", 4) == 0) {
         break;
       }
-      // If socket is always readable/writable, we may
-      // enter tight loop then block libuv event loop
-      // and other coroutines. Suspend currnet coroutine
-      // manually.
-      coro_.Nice();
     }
     s.Close();
   }

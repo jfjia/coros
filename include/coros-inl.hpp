@@ -164,6 +164,11 @@ inline Event Coroutine::GetEvent() const {
   return event_;
 }
 
+inline bool Coroutine::CheckBuget() {
+  buget_ --;
+  return (buget_ >= 0);
+}
+
 inline void Coroutine::Resume() {
   state_ = STATE_RUNNING;
   ctx_ = context::jump_fcontext(ctx_, (void*)this).fctx;

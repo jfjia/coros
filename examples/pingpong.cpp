@@ -19,7 +19,7 @@ public:
     if (!coro_.Create(sched, std::bind(&Conn::Fn1, this), std::bind(&Conn::ExitFn, this))) {
       return false;
     }
-    MALOG_INFO("coro=" << coro_.GetId() << ", created");
+    MALOG_INFO("coro-" << coro_.GetId() << ", created");
     return true;
   }
 
@@ -27,16 +27,16 @@ public:
     if (!coro_.Create(sched, std::bind(&Conn::Fn, this, fd), std::bind(&Conn::ExitFn, this))) {
       return false;
     }
-    MALOG_INFO("coro=" << coro_.GetId() << ", created");
+    MALOG_INFO("coro-" << coro_.GetId() << ", created");
     return true;
   }
 
   void Fn1() {
     coros::Socket s;
     char buf[256];
-    MALOG_INFO("coro=" << coro_.GetId() << ", connect " << host);
+    MALOG_INFO("coro-" << coro_.GetId() << ", connect " << host);
     if (s.ConnectIp(host, port)) {
-      MALOG_INFO("coro=" << coro_.GetId() << ", connected");
+      MALOG_INFO("coro-" << coro_.GetId() << ", connected");
       s.WriteExactly(buf, 256);
       out_bytes += 256;
       for (;;) {
@@ -50,10 +50,9 @@ public:
         if (len <= 0) {
           break;
         }
-        coro_.Nice();
       }
       s.Close();
-      MALOG_INFO("coro=" << coro_.GetId() << ", closed");
+      MALOG_INFO("coro-" << coro_.GetId() << ", closed");
     }
   }
 
@@ -71,12 +70,12 @@ public:
       if (len <= 0) {
         break;
       }
-      coro_.Nice();
     }
     s.Close();
   }
 
   void ExitFn() {
+    MALOG_INFO("coro-" << coro_.GetId() << ": exit");
     delete this;
   }
 

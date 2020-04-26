@@ -161,6 +161,7 @@ public:
   void EndCompute();
 
   void SetTimeout(int seconds);
+  bool CheckBuget();
 
 private:
   friend class Scheduler;
@@ -179,6 +180,7 @@ private:
   int timeout_secs_{ 0 };
   Coroutine* joined_{ nullptr };
   std::size_t id_{ 0 };
+  int buget_{ 0 };
 };
 
 typedef std::vector<Coroutine* > CoroutineList;
@@ -245,6 +247,7 @@ protected:
   std::atomic<bool> shutdown_{ false };
   std::atomic<bool> graceful_{ false };
   int tight_loop_{ 256 };
+  int coro_buget_{ 32 };
 };
 
 class Schedulers {

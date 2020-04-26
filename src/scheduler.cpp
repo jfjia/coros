@@ -163,7 +163,10 @@ void Scheduler::Run() {
 }
 
 void Scheduler::RunCoros() {
-  int loop = ready_.size() * tight_loop_;
+  int loop = tight_loop_;
+  for (auto i : ready_) {
+    i->buget_ = coro_buget_;
+  }
   while (loop > 0 && ready_.size() > 0) {
     for (std::size_t i = 0; i < ready_.size();) {
       Coroutine* c = ready_[i];
@@ -182,6 +185,10 @@ void Scheduler::RunCoros() {
         FastDelVectorItem<Coroutine*>(ready_, i);
         outstanding_ ++;
         compute_threads.Add(c);
+        continue;
+      } else if (c->GetState() == STATE_READY) {
+        c->buget_ = coro_buget_;
+        // fall through to next coroutine
       }
       i++;
     }

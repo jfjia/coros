@@ -234,6 +234,9 @@ bool Socket::ConnectIp(const std::string& ip, int port) {
 }
 
 int Socket::ReadSome(char* data, int len) {
+  if (!coro_->CheckBuget()) {
+    coro_->Nice();
+  }
   for (;;) {
     int rc = ::recv(s_, data, len, 0);
     if (rc >= 0) {
@@ -266,6 +269,9 @@ int Socket::ReadAtLeast(char* data, int len, int min_len) {
 }
 
 int Socket::WriteSome(const char* data, int len) {
+  if (!coro_->CheckBuget()) {
+    coro_->Nice();
+  }
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif
@@ -297,6 +303,9 @@ int Socket::WriteExactly(const char* data, int len) {
 }
 
 uv_os_sock_t Socket::Accept() {
+  if (!coro_->CheckBuget()) {
+    coro_->Nice();
+  }
   for (;;) {
     struct sockaddr_storage mem;
     socklen_t len = sizeof(mem);
