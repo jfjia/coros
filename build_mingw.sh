@@ -5,7 +5,7 @@ if [ ! -d "build_mingw" ]; then
     mkdir build_mingw
 fi
 cd build_mingw
-cmake -G "MSYS Makefiles" ..
+cmake -DWITH_EXAMPLES=ON -G "MSYS Makefiles" ..
 make clean
 make -j2 >1.log 2>2.log
 cat 2.log

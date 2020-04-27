@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8)
 
 project(coros)
 
+option(WITH_EXAMPLES "build examples" OFF)
+
 if(UNIX)
     enable_language(CXX ASM)
 else()
@@ -22,11 +24,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -ggdb -DNDEBUG")
 
 message("  CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}")
 
-aux_source_directory(${PROJECT_SOURCE_DIR}/deps/malog/src malog_SRC)
-add_library(malog STATIC ${malog_SRC})
-target_include_directories(malog PUBLIC ${PROJECT_SOURCE_DIR}/deps/malog/src)
-
-include_directories(${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/deps/malog/src)
+include_directories(${PROJECT_SOURCE_DIR}/include)
 aux_source_directory(${PROJECT_SOURCE_DIR}/src COROS_SRC)
 if(UNIX)
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -53,4 +51,7 @@ set(ASM_SOURCES "asm/make_${CPU_ARCH}_${ASM_EXT}"
 add_library(coros STATIC ${COROS_SRC} ${ASM_SOURCES})
 target_include_directories(coros PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-add_subdirectory(examples)
+if(WITH_EXAMPLES)
+    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/malog)
+    add_subdirectory(examples)
+endif()
