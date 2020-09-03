@@ -10,95 +10,57 @@
 #define NUM_WORKERS 2
 #endif
 
-class Conn {
-public:
-  bool Start(coros::Scheduler* sched, uv_os_sock_t fd) {
-    if (!coro_.Create(sched, std::bind(&Conn::Fn, this, fd), std::bind(&Conn::ExitFn, this))) {
-      return false;
+void ConnFn(uv_os_sock_t fd) {
+  coros::Coroutine* c = coros::Coroutine::Self();
+
+  MALOG_INFO("coro-" << c->GetId() << ": enter");
+  coros::Socket s(fd);
+  char buf[256];
+  s.SetDeadline(30);
+  for (;;) {
+    int len = s.ReadSome(buf, 256);
+    if (len <= 0) {
+      MALOG_INFO("coro-" << c->GetId() << ": read fail " << len);
+      break;
     }
-    return true;
-  }
-
-  void Fn(uv_os_sock_t fd) {
-    MALOG_INFO("coro-" << coro_.GetId() << ": enter");
-    coros::Socket s(fd);
-    char buf[256];
-    s.SetDeadline(30);
-    for (;;) {
-      int len = s.ReadSome(buf, 256);
-      if (len <= 0) {
-        MALOG_INFO("coro-" << coro_.GetId() << ": read fail " << len);
-        break;
-      }
-      len = s.WriteExactly(buf, len);
-      if (len <= 0) {
-        MALOG_ERROR("coro-" << coro_.GetId() << ": conn broken");
-        break;
-      }
-      if (strncmp(buf, "exit", 4) == 0) {
-        break;
-      }
+    len = s.WriteExactly(buf, len);
+    if (len <= 0) {
+      MALOG_ERROR("coro-" << c->GetId() << ": conn broken");
+      break;
     }
-    s.Close();
+    if (strncmp(buf, "exit", 4) == 0) {
+      break;
+    }
   }
+  s.Close();
+}
 
-  void ExitFn() {
-    MALOG_INFO("coro-" << coro_.GetId() << ": exit");
-    delete this;
-  }
+void ExitFn(coros::Coroutine* c) {
+  MALOG_INFO("coro-" << c->GetId() << ": exit");
+}
 
-private:
-  coros::Coroutine coro_;
-  std::string id_;
-};
-
-class Listener {
-public:
 #ifdef USE_SCHEDULERS
-  bool Start(coros::Schedulers* scheds) {
-    scheds_ = scheds;
-    if (!coro_.Create(scheds->GetDefault(), std::bind(&Listener::Fn, this), std::bind(&Listener::ExitFn, this))) {
+void ListenerFn(coros::Schedulers* scheds) {
 #else
-  bool Start(coros::Scheduler* sched) {
-    sched_ = sched;
-    if (!coro_.Create(sched, std::bind(&Listener::Fn, this), std::bind(&Listener::ExitFn, this))) {
+void ListenerFn(coros::Scheduler* sched) {
 #endif
-      return false;
+  coros::Coroutine* c = coros::Coroutine::Self();
+  MALOG_INFO("coro-" << c->GetId() << ": enter");
+  coros::Socket s;
+  s.ListenByIp("0.0.0.0", 9090);
+  for (;;) {
+    uv_os_sock_t s_new = s.Accept();
+    MALOG_INFO("coro-" << c->GetId() << ": accept new conn");
+    if (s_new == BAD_SOCKET) {
+      break;
     }
-    return true;
-  }
-
-  void Fn() {
-    MALOG_INFO("coro-" << coro_.GetId() << ": enter");
-    coros::Socket s;
-    s.ListenByIp("0.0.0.0", 9090);
-    for (;;) {
-      uv_os_sock_t s_new = s.Accept();
-      MALOG_INFO("coro-" << coro_.GetId() << ": accept new conn");
-      if (s_new == BAD_SOCKET) {
-        break;
-      }
-      Conn* c = new Conn();
 #ifdef USE_SCHEDULERS
-      c->Start(scheds_->GetNext(), s_new);
+    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), std::bind(ConnFn, s_new), ExitFn);
 #else
-      c->Start(sched, s_new);
+    /*coros::Coroutine* c_new = */coros::Coroutine::Create(sched, std::bind(ConnFn, s_new), ExitFn);
 #endif
-    }
   }
-
-  void ExitFn() {
-    MALOG_INFO("coro-" << coro_.GetId() << ": exit");
-  }
-
-protected:
-  coros::Coroutine coro_;
-#ifdef USE_SCHEDULERS
-  coros::Schedulers* scheds_;
-#else
-  coro::Scheduler* sched_;
-#endif
-};
+}
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
@@ -108,12 +70,11 @@ int main(int argc, char** argv) {
   coros::Scheduler sched(true);
 #endif
 
-  Listener l;
 #ifdef USE_SCHEDULERS
-  l.Start(&scheds);
+  /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetDefault(), std::bind(ListenerFn, &scheds), ExitFn);
   scheds.Run();
 #else
-  l.Start(&sched);
+  /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &sched), ExitFn);
   sched.Run();
 #endif
 

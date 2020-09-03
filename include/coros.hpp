@@ -138,10 +138,10 @@ class Coroutine {
 public:
   static Coroutine* Self();
 
-  bool Create(Scheduler* sched,
-              const std::function<void()>& fn,
-              const std::function<void()>& exit_fn,
-              std::size_t stack_size = 0);
+  static Coroutine* Create(Scheduler* sched,
+                           const std::function<void()>& fn,
+                           const std::function<void(Coroutine*)>& exit_fn,
+                           std::size_t stack_size = 0);
   void Destroy();
 
   void Resume();
@@ -174,7 +174,7 @@ private:
   context::fcontext_t caller_{ nullptr };
   context::Stack stack_;
   std::function<void()> fn_;
-  std::function<void()> exit_fn_;
+  std::function<void(Coroutine*)> exit_fn_;
   Scheduler* sched_{ nullptr };
   State state_{ STATE_READY };
   Event event_;

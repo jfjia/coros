@@ -8,30 +8,24 @@
 #define NUM_WORKERS 2
 #endif
 
-class MyCo {
-public:
-  bool Start(coros::Scheduler* sched) {
-    return coro_.Create(sched, std::bind(&MyCo::Fn, this), std::bind(&MyCo::ExitFn, this));
-  }
+void MyCoFn() {
+  coros::Coroutine* c = coros::Coroutine::Self();
 
-  void Fn() {
-    MALOG_INFO("coro-" << coro_.GetId() << ": fn()");
-    coro_.Wait(500);
-    MALOG_INFO("coro-" << coro_.GetId() << ": wait()");
-    coro_.BeginCompute();
-    MALOG_INFO("coro-" << coro_.GetId() << ": run in compute thread-" << std::this_thread::get_id());
-    coro_.EndCompute();
-    MALOG_INFO("coro-" << coro_.GetId() << ": back in coro thread-" << std::this_thread::get_id());
-  }
+  MALOG_INFO("coro-" << c->GetId() << ": MyCoFn()");
 
-  void ExitFn() {
-    MALOG_INFO("coro-" << coro_.GetId() << ": exit_fn()");
-    delete this;
-  }
+  MALOG_INFO("coro-" << c->GetId() << ": wait()");
+  c->Wait(500);
 
-private:
-  coros::Coroutine coro_;
-};
+  c->BeginCompute();
+  MALOG_INFO("coro-" << c->GetId() << ": run in compute thread-" << std::this_thread::get_id());
+  c->EndCompute();
+
+  MALOG_INFO("coro-" << c->GetId() << ": back in coro thread-" << std::this_thread::get_id());
+}
+
+void ExitFn(coros::Coroutine* c) {
+  MALOG_INFO("coro-" << c->GetId() << ": ExitFn()");
+}
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
@@ -42,11 +36,11 @@ int main(int argc, char** argv) {
   coros::Scheduler sched(true);
 #endif
   for (int i = 0; i < 100; i++) {
-    MyCo* co = new MyCo();
 #ifdef USE_SCHEDULERS
-    co->Start(scheds.GetNext());
+    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetNext(), MyCoFn, ExitFn);
 #else
     co->Start(&sched);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, MyCoFn, ExitFn);
 #endif
   }
 #ifdef USE_SCHEDULERS
