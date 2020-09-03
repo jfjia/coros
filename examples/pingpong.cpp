@@ -141,16 +141,17 @@ int main(int argc, char** argv) {
     }
   }
 
+  coros::Scheduler sched(true);
   coros::Schedulers scheds(threads);
 
   if (is_server) {
     MALOG_INFO("Start pingpoing server");
-    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetDefault(), std::bind(ListenerFn, &scheds), ExitFn);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &scheds), ExitFn);
   } else {
     MALOG_INFO("Start guard timer");
-    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetDefault(), std::bind(GuardFn, &scheds), ExitFn);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), ExitFn);
   }
-  scheds.Run();
+  sched.Run();
 
   return 0;
 }

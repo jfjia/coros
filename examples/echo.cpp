@@ -64,19 +64,19 @@ void ListenerFn(coros::Scheduler* sched) {
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
+
+  coros::Scheduler sched(true);
 #ifdef USE_SCHEDULERS
   coros::Schedulers scheds(NUM_WORKERS);
-#else
-  coros::Scheduler sched(true);
 #endif
 
 #ifdef USE_SCHEDULERS
-  /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetDefault(), std::bind(ListenerFn, &scheds), ExitFn);
-  scheds.Run();
+  /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &scheds), ExitFn);
 #else
   /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &sched), ExitFn);
-  sched.Run();
 #endif
+
+  sched.Run();
 
   return 0;
 }

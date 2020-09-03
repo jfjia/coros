@@ -316,8 +316,7 @@ std::size_t Scheduler::NextId() {
   return next_id.fetch_add(1);
 }
 
-void Schedulers::Run() {
-  sched_.Run();
+void Schedulers::Stop() {
   for (int i = 0; i < N_; i++) {
     scheds_[i]->Stop(true);
   }
@@ -339,7 +338,7 @@ void Schedulers::Fn(int n) {
   sched.Run();
 }
 
-Schedulers::Schedulers(int N) : sched_(true), N_(N) {
+Schedulers::Schedulers(int N) : N_(N) {
   scheds_.resize(N);
   threads_.resize(N);
   for (int i = 0; i < N; i++) {

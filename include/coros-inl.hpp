@@ -263,10 +263,6 @@ inline void Scheduler::BeginCompute(Coroutine* coro) {
   coro->Suspend(STATE_COMPUTE);
 }
 
-inline Scheduler* Schedulers::GetDefault() {
-  return &sched_;
-}
-
 inline Scheduler* Schedulers::GetNext() {
   return scheds_[(rr_index_ ++) % N_];
 }

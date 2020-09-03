@@ -255,16 +255,14 @@ class Schedulers {
 public:
   Schedulers(int N);
 
-  Scheduler* GetDefault();
   Scheduler* GetNext();
 
-  void Run();
+  void Stop();
 
 protected:
   void Fn(int n);
 
 protected:
-  Scheduler sched_;
   int N_;
   std::vector<std::thread> threads_;
   std::vector<Scheduler*> scheds_;
