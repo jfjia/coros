@@ -110,22 +110,20 @@ class Buffer {
 public:
   Buffer(Socket& s);
 
-  void Clear();
-
+  int EnsureData(int n);
   char* Data();
   int Size();
-  void RemoveConsumed(int n);
+  void Skip(int n);
 
-  void Commit(int n);
-  void Compact();
+  int EnsureSpace(int n);
   char* Space();
   int SpaceSize();
-  char* Space(int n);
+  void Commit(int n);
 
-  bool Drain();
-  bool Read(int min_len);
+  void Clear();
+  int Flush();
 
-  bool WriteExactly(const char* buf, int len);
+  void Compact();
 
 protected:
   char data_[N];

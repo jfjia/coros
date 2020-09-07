@@ -39,7 +39,7 @@ inline int Buffer<N>::Size() {
 }
 
 template<int N>
-inline void Buffer<N>::RemoveConsumed(int n) {
+inline void Buffer<N>::Skip(int n) {
   if (n >= Size()) {
     Clear();
   } else {
@@ -68,22 +68,23 @@ inline char* Buffer<N>::Space() {
 }
 
 template<int N>
-inline char* Buffer<N>::Space(int n) {
+inline int Buffer<N>::EnsureSpace(int n) {
   if (SpaceSize() >= n) {
-    return Space();
+    return n;
   }
   if ((N - Size()) >= n) {
     Compact();
-    return Space();
+    return n;
   }
   if (N < n) {
-    return nullptr;
+    return -1;
   }
-  if (s_.WriteExactly(Data(), Size()) != Size()) {
-    return nullptr;
+  int rc = s_.WriteExactly(Data(), Size());
+  if (rc != Size()) {
+    return rc;
   }
   Clear();
-  return Space();
+  return n;
 }
 
 template<int N>
@@ -92,38 +93,31 @@ inline int Buffer<N>::SpaceSize() {
 }
 
 template<int N>
-inline bool Buffer<N>::Drain() {
+inline int Buffer<N>::Flush() {
   int size = Size();
-  if (s_.WriteExactly(Data(), size) != size) {
-    return false;
+  int rc = s_.WriteExactly(Data(), size);
+  if (rc != size) {
+    return rc;
   }
   Clear();
-  return true;
+  return size;
 }
 
 template<int N>
-inline bool Buffer<N>::Read(int min_len) {
-  assert(min_len <= N);
-  if (Size() >= min_len) {
-    return true;
+inline int Buffer<N>::EnsureData(int n) {
+  assert(n <= N);
+  if (Size() >= n) {
+    return n;
   }
-  if ((N - read_index_) < min_len) {
+  if ((N - read_index_) < n) {
     Compact();
   }
-  int n = s_.ReadAtLeast(Space(), SpaceSize(), min_len - Size());
-  if (n <= 0) {
-    return false;
+  int rc = s_.ReadAtLeast(Space(), SpaceSize(), n - Size());
+  if (rc <= 0) {
+    return rc;
   }
   Commit(n);
-  return true;
-}
-
-template<int N>
-inline bool Buffer<N>::WriteExactly(const char* buf, int len) {
-  if (!Drain()) {
-    return false;
-  }
-  return s_.WriteExactly(buf, len);
+  return n;
 }
 
 inline Coroutine* Coroutine::Self() {
