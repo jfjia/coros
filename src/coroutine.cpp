@@ -26,7 +26,7 @@ Coroutine* Coroutine::Create(Scheduler* sched,
 
   c->stack_ = stack;
   c->sched_ = sched;
-  c->id_ = NextId() * 1000 + sched->GetId();
+  c->id_ = NextId();
   c->fn_ = fn;
   c->exit_fn_ = exit_fn;
   c->ctx_ = context::make_fcontext(stack.sp, stack.size, [](context::transfer_t t) {
