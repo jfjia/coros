@@ -2,6 +2,9 @@
 #include "malog.h"
 #include <thread>
 #include <sstream>
+#include <random>
+#include <time.h>
+#include <chrono>
 
 #define N_COROS 100
 
@@ -12,6 +15,9 @@
 #include <atomic>
 std::atomic_int n_coros(N_COROS);
 #endif
+
+thread_local std::default_random_engine e(time(NULL));
+thread_local std::uniform_int_distribution<int> u(100, 500);
 
 std::string GetId(coros::Coroutine* c) {
   std::stringstream ss;
@@ -26,9 +32,14 @@ void MyCoFn() {
 
   MALOG_INFO(id << ": MyCoFn() in coro thread-" << std::this_thread::get_id());
 
+  int msecs = u(e);
+  c->Wait(msecs); // This will not block Scheduler thread, just suspend current coroutine
+
   c->BeginCompute();
   MALOG_INFO(id << ": run in compute thread-" << std::this_thread::get_id());
-  // Do some block operations
+  // Do some real blocking operations
+  // This will not block Scheduler thread as it's running in compute thread pool
+  std::this_thread::sleep_for(std::chrono::milliseconds(msecs));
   c->EndCompute();
 
   MALOG_INFO(id << ": back in coro thread-" << std::this_thread::get_id());
