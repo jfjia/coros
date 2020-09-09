@@ -5,8 +5,7 @@
 
 namespace coros {
 
-static const int SWEEP_INTERVAL = 1000;
-static const int RECV_BUFFER_SIZE = 64 * 1024;
+static const int kSweepInterval = 1000;
 
 thread_local Scheduler* local_sched = nullptr;
 
@@ -63,7 +62,7 @@ Scheduler::Scheduler(bool is_default, std::size_t stack_size, int compute_thread
   uv_timer_init(loop_ptr_, &sweep_timer_);
   uv_timer_start(&sweep_timer_, [](uv_timer_t* handle) {
     (reinterpret_cast<Scheduler*>(handle->data))->Sweep();
-  }, SWEEP_INTERVAL, SWEEP_INTERVAL);
+  }, kSweepInterval, kSweepInterval);
 
   local_sched = this;
   id_ = NextId();

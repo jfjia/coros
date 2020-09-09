@@ -8,7 +8,7 @@
 #define USE_SCHEDULERS 1
 
 #ifdef USE_SCHEDULERS
-#define NUM_WORKERS 2
+static const int kNumWorkers = 2;
 #endif
 
 std::string GetId(coros::Coroutine* c) {
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
 
   coros::Scheduler sched(true);
 #ifdef USE_SCHEDULERS
-  coros::Schedulers scheds(NUM_WORKERS);
+  coros::Schedulers scheds(kNumWorkers);
 #endif
 
 #ifdef USE_SCHEDULERS

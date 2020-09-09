@@ -6,14 +6,14 @@
 #include <time.h>
 #include <chrono>
 
-#define N_COROS 100
+static const int kNumCoros = 100;
 
 #define USE_SCHEDULERS 1
 
 #ifdef USE_SCHEDULERS
-#define NUM_WORKERS 2
+static const int kNumWorkers = 2;
 #include <atomic>
-std::atomic_int n_coros(N_COROS);
+std::atomic_int n_coros(kNumCoros);
 #endif
 
 thread_local std::default_random_engine e(time(NULL));
@@ -73,11 +73,11 @@ int main(int argc, char** argv) {
 
   coros::Scheduler sched(true);
 #ifdef USE_SCHEDULERS
-  coros::Schedulers scheds(NUM_WORKERS);
+  coros::Schedulers scheds(kNumWorkers);
   /*coros::Coroutine* c_guard = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), GuardExitFn);
 #endif
 
-  for (int i = 0; i < N_COROS; i++) {
+  for (int i = 0; i < kNumCoros; i++) {
 #ifdef USE_SCHEDULERS
     /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetNext(), MyCoFn, ExitFn);
 #else
