@@ -1,4 +1,4 @@
-#include "coros.hpp"
+#include "coros.h"
 #include <cassert>
 #include <atomic>
 
@@ -63,4 +63,4 @@ std::size_t Coroutine::NextId() {
   return next_id.fetch_add(1);
 }
 
-}
+} // coros

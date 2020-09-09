@@ -1,8 +1,9 @@
-#include "coros.hpp"
+#include "coros.h"
 #include "malog.h"
 #include <string.h>
 #include <memory.h>
 #include <thread>
+#include <sstream>
 
 std::atomic<std::size_t> in_bytes;
 std::atomic<std::size_t> out_bytes;
@@ -13,14 +14,22 @@ int port = 9090;
 int clients = 100;
 int threads = 2;
 
+std::string GetId(coros::Coroutine* c) {
+  std::stringstream ss;
+  ss << "coro[" << c->GetId() << "]";
+  return ss.str();
+}
+
 void ClientFn() {
   coros::Coroutine* c = coros::Coroutine::Self();
 
+  std::string id = GetId(c);
+
   coros::Socket s;
   char buf[256];
-  MALOG_INFO("coro-" << c->GetId() << ", connect " << host);
+  MALOG_INFO(id << ", connect " << host);
   if (s.ConnectIp(host, port)) {
-    MALOG_INFO("coro-" << c->GetId() << ", connected");
+    MALOG_INFO(id << ", connected");
     s.WriteExactly(buf, 256);
     out_bytes += 256;
     for (;;) {
@@ -36,7 +45,7 @@ void ClientFn() {
       }
     }
     s.Close();
-    MALOG_INFO("coro-" << c->GetId() << ", closed");
+    MALOG_INFO(id << ", closed");
   }
 }
 
@@ -61,7 +70,8 @@ void ServeFn(uv_os_sock_t fd) {
 }
 
 void ExitFn(coros::Coroutine* c) {
-  MALOG_INFO("coro-" << c->GetId() << ": exit");
+  std::string id = GetId(c);
+  MALOG_INFO(id << ": exit");
 }
 
 void ListenerFn(coros::Schedulers* scheds) {

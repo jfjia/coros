@@ -1,6 +1,7 @@
-#include "coros.hpp"
+#include "coros.h"
 #include "malog.h"
 #include <thread>
+#include <sstream>
 
 #define N_COROS 100
 
@@ -12,21 +13,31 @@
 std::atomic_int n_coros(N_COROS);
 #endif
 
+std::string GetId(coros::Coroutine* c) {
+  std::stringstream ss;
+  ss << "coro[" << c->GetId() << "]";
+  return ss.str();
+}
+
 void MyCoFn() {
   coros::Coroutine* c = coros::Coroutine::Self();
 
-  MALOG_INFO("coro-" << c->GetId() << ": MyCoFn() in coro thread-" << std::this_thread::get_id());
+  std::string id = GetId(c);
+
+  MALOG_INFO(id << ": MyCoFn() in coro thread-" << std::this_thread::get_id());
 
   c->BeginCompute();
-  MALOG_INFO("coro-" << c->GetId() << ": run in compute thread-" << std::this_thread::get_id());
+  MALOG_INFO(id << ": run in compute thread-" << std::this_thread::get_id());
   // Do some block operations
   c->EndCompute();
 
-  MALOG_INFO("coro-" << c->GetId() << ": back in coro thread-" << std::this_thread::get_id());
+  MALOG_INFO(id << ": back in coro thread-" << std::this_thread::get_id());
 }
 
 void ExitFn(coros::Coroutine* c) {
-  MALOG_INFO("coro-" << c->GetId() << ": ExitFn()");
+  std::string id = GetId(c);
+
+  MALOG_INFO(id << ": ExitFn()");
   n_coros --;
 }
 

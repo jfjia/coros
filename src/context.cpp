@@ -1,4 +1,4 @@
-#include "coros.hpp"
+#include "coros.h"
 #include <cmath>
 #include <cassert>
 #if !defined(_WIN32)
@@ -12,6 +12,7 @@
 #endif
 
 namespace coros {
+
 namespace context {
 
 static std::size_t page_size_;
@@ -90,5 +91,6 @@ void DeallocateStack(Stack& stack) {
 #endif
 }
 
-}
-}
+} // context
+
+} // coros

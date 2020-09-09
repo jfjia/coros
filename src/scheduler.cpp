@@ -1,4 +1,4 @@
-#include "coros.hpp"
+#include "coros.h"
 #include <cassert>
 #include <atomic>
 #include <thread>
@@ -357,4 +357,4 @@ Schedulers::Schedulers(int N) : N_(N) {
   }
 }
 
-}
+} // coros

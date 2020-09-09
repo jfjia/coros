@@ -1,4 +1,4 @@
-#include "coros.hpp"
+#include "coros.h"
 #include <cassert>
 #include <unistd.h>
 #include <string.h>
@@ -6,6 +6,7 @@
 #include <memory.h>
 
 namespace coros {
+
 inline uv_os_sock_t SetNoSigPipe(uv_os_sock_t s) {
 #ifdef SO_NOSIGPIPE
   if (s != BAD_SOCKET) {
@@ -414,4 +415,4 @@ Event Socket::WaitReadable(Condition* cond) {
   return coro_->GetEvent();
 }
 
-}
+} // coros
