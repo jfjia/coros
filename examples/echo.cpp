@@ -22,7 +22,7 @@ void ConnFn(uv_os_sock_t fd) {
 
   std::string id = GetId(c);
 
-  MALOG_INFO(id << ": enter");
+  MALOG_INFO(id << ": new coror enter for fd=" << fd);
   coros::Socket s(fd);
   char buf[256];
   s.SetDeadline(30);
@@ -37,7 +37,7 @@ void ConnFn(uv_os_sock_t fd) {
       MALOG_ERROR(id << ": conn broken");
       break;
     }
-    if (strncmp(buf, "exit", 4) == 0) {
+    if (len >= 4 && strncmp(buf, "exit", 4) == 0) {
       break;
     }
   }
@@ -59,12 +59,13 @@ void ListenerFn(coros::Scheduler* sched) {
 
   std::string id = GetId(c);
 
-  MALOG_INFO(id << ": enter");
+  MALOG_INFO(id << ": new coro enter for listener");
   coros::Socket s;
   s.ListenByIp("0.0.0.0", 9090);
+  MALOG_INFO(id << ": listening 0.0.0.0:9090");
   for (;;) {
     uv_os_sock_t s_new = s.Accept();
-    MALOG_INFO(id << ": accept new conn");
+    MALOG_INFO(id << ": accept new conn fd=" << s_new);
     if (s_new == BAD_SOCKET) {
       break;
     }
