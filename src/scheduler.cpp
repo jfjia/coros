@@ -28,10 +28,9 @@ protected:
 
 ComputeThreads compute_threads;
 
-Scheduler::Scheduler(bool is_default, std::size_t stack_size, int compute_threads_n)
-  : is_default_(is_default), stack_size_(stack_size) {
+Scheduler::Scheduler(bool is_default, int compute_threads_n)
+  : is_default_(is_default) {
   if (is_default) {
-    context::InitStack();
     loop_ptr_ = uv_default_loop();
     compute_threads.Start(compute_threads_n);
   } else {

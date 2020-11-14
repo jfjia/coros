@@ -17,6 +17,9 @@
 #include <thread>
 #include <condition_variable>
 
+#include <boost/context/detail/fcontext.hpp>
+#include <boost/context/fixedsize_stack.hpp>
+
 #if defined(_WIN32)
 #define BAD_SOCKET (uintptr_t)(~0)
 #else
@@ -24,30 +27,6 @@
 #endif
 
 namespace coros {
-
-namespace context {
-
-typedef void* fcontext_t;
-
-typedef struct transfer_s {
-  fcontext_t fctx;
-  void* data;
-} transfer_t;
-
-extern "C" transfer_t jump_fcontext(fcontext_t const to, void* vp);
-extern "C" fcontext_t make_fcontext(void* sp, size_t size, void (*fn)(transfer_t));
-extern "C" transfer_t ontop_fcontext(fcontext_t const to, void* vp, transfer_t(*fn)(transfer_t));
-
-struct Stack {
-  std::size_t size{ 0 };
-  void* sp{ nullptr };
-};
-
-void InitStack();
-Stack AllocateStack(std::size_t stack_size);
-void DeallocateStack(Stack& stack);
-
-} // context
 
 struct Unwind {};
 
@@ -143,7 +122,7 @@ public:
   static Coroutine* Create(Scheduler* sched,
                            const std::function<void()>& fn,
                            const std::function<void(Coroutine*)>& exit_fn,
-                           std::size_t stack_size = 0);
+                           std::size_t stack_size);
   void Destroy();
 
   void Resume();
@@ -172,9 +151,10 @@ private:
   static std::size_t NextId();
 
 private:
-  context::fcontext_t ctx_{ nullptr };
-  context::fcontext_t caller_{ nullptr };
-  context::Stack stack_;
+  boost::context::detail::fcontext_t ctx_{ nullptr };
+  boost::context::detail::fcontext_t caller_{ nullptr };
+  boost::context::fixedsize_stack stack_alloc_;
+  boost::context::stack_context stack_;
   std::function<void()> fn_;
   std::function<void(Coroutine*)> exit_fn_;
   Scheduler* sched_{ nullptr };
@@ -203,7 +183,7 @@ class Scheduler {
 public:
   static Scheduler* Get();
 
-  Scheduler(bool is_default, std::size_t stack_size = 0, int compute_threads_n = 2);
+  Scheduler(bool is_default, int compute_threads_n = 2);
   ~Scheduler();
 
   void AddCoroutine(Coroutine* coro); // for current thread
@@ -215,7 +195,6 @@ public:
 
   Coroutine* GetCurrent() const;
   uv_loop_t* GetLoop();
-  std::size_t GetStackSize() const;
   std::size_t GetId() const;
 
   void Stop(bool graceful);
@@ -233,7 +212,6 @@ protected:
 protected:
   bool is_default_;
   std::size_t id_{ 0 };
-  std::size_t stack_size_;
   uv_loop_t loop_;
   uv_loop_t* loop_ptr_{ nullptr };
   uv_prepare_t pre_;
@@ -441,12 +419,12 @@ inline bool Coroutine::CheckBuget() {
 
 inline void Coroutine::Resume() {
   state_ = STATE_RUNNING;
-  ctx_ = context::jump_fcontext(ctx_, (void*)this).fctx;
+  ctx_ = boost::context::detail::jump_fcontext(ctx_, (void*)this).fctx;
 }
 
 inline void Coroutine::Suspend(State new_state) {
   state_ = new_state;
-  caller_ = context::jump_fcontext(caller_, (void*)this).fctx;
+  caller_ = boost::context::detail::jump_fcontext(caller_, (void*)this).fctx;
   if (event_ == EVENT_CANCEL) {
     throw Unwind();
   }
@@ -514,10 +492,6 @@ inline Coroutine* Scheduler::GetCurrent() const {
 
 inline uv_loop_t* Scheduler::GetLoop() {
   return loop_ptr_;
-}
-
-inline std::size_t Scheduler::GetStackSize() const {
-  return stack_size_;
 }
 
 inline std::size_t Scheduler::GetId() const {

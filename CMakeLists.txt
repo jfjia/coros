@@ -4,11 +4,7 @@ project(coros)
 
 option(WITH_EXAMPLES "build examples" OFF)
 
-if(UNIX)
-    enable_language(CXX ASM)
-else()
-    enable_language(CXX ASM-ATT)
-endif()
+enable_language(CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE DEBUG)
@@ -27,28 +23,12 @@ message("  CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_
 include_directories(${PROJECT_SOURCE_DIR}/include)
 aux_source_directory(${PROJECT_SOURCE_DIR}/src COROS_SRC)
 if(UNIX)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(CPU_ARCH "x86_64")
-    else()
-        set(CPU_ARCH "i386")
-    endif()
-    set(ASM_EXT "sysv_elf_gas.S")
     SET(DEPENDENT_LIBRARIES uv pthread)
 else()
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(CPU_ARCH "x86_64")
-    else()
-        set(CPU_ARCH "i386")
-    endif()
-    set(ASM_EXT "ms_pe_gas.asm")
     SET(DEPENDENT_LIBRARIES uv ws2_32)
 endif()
 
-set(ASM_SOURCES "asm/make_${CPU_ARCH}_${ASM_EXT}"
-                "asm/jump_${CPU_ARCH}_${ASM_EXT}"
-                "asm/ontop_${CPU_ARCH}_${ASM_EXT}")
-
-add_library(coros STATIC ${COROS_SRC} ${ASM_SOURCES})
+add_library(coros STATIC ${COROS_SRC})
 target_include_directories(coros PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 if(WITH_EXAMPLES)

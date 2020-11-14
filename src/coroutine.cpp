@@ -15,7 +15,8 @@ Coroutine* Coroutine::Create(Scheduler* sched,
     sched = Scheduler::Get();
   }
 
-  context::Stack stack = context::AllocateStack(stack_size ? stack_size : sched->GetStackSize());
+  boost::context::fixedsize_stack stack_alloc(stack_size);
+  boost::context::stack_context stack = stack_alloc.allocate();
   if (!stack.sp) {
     return nullptr;
   }
@@ -29,14 +30,14 @@ Coroutine* Coroutine::Create(Scheduler* sched,
   c->id_ = NextId();
   c->fn_ = fn;
   c->exit_fn_ = exit_fn;
-  c->ctx_ = context::make_fcontext(stack.sp, stack.size, [](context::transfer_t t) {
+  c->ctx_ = boost::context::detail::make_fcontext(stack.sp, stack.size, [](boost::context::detail::transfer_t t) {
     ((Coroutine*)t.data)->caller_ = t.fctx;
     try {
       ((Coroutine*)t.data)->fn_();
     } catch (Unwind& uw) {
     }
     ((Coroutine*)t.data)->state_ = STATE_DONE;
-    context::jump_fcontext(((Coroutine*)t.data)->caller_, NULL);
+    boost::context::detail::jump_fcontext(((Coroutine*)t.data)->caller_, NULL);
   });
   if (sched != Scheduler::Get()) {
     sched->PostCoroutine(c, false);
@@ -55,7 +56,8 @@ void Coroutine::Destroy() {
   stack_.sp = static_cast<char*>(stack_.sp) + kReservedSize;
   stack_.size += kReservedSize;
   this->~Coroutine();
-  context::DeallocateStack(stack_);
+  boost::context::fixedsize_stack stack_alloc(stack_.size);
+  stack_alloc.deallocate(stack_);
 }
 
 std::size_t Coroutine::NextId() {
