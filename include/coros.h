@@ -153,7 +153,6 @@ private:
 private:
   boost::context::detail::fcontext_t ctx_{ nullptr };
   boost::context::detail::fcontext_t caller_{ nullptr };
-  boost::context::fixedsize_stack stack_alloc_;
   boost::context::stack_context stack_;
   std::function<void()> fn_;
   std::function<void(Coroutine*)> exit_fn_;
