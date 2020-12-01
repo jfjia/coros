@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 2.8)
 
 project(coros)
 
+find_package(Boost REQUIRED COMPONENTS context)
+message("  Boost_Dir: ${Boost_INCLUDE_DIRS}, Boost_Lib: ${Boost_LIBRARIES}")
+include_directories(${Boost_INCLUDE_DIRS})
+
 option(WITH_EXAMPLES "build examples" OFF)
 
 enable_language(CXX)
@@ -23,9 +27,9 @@ message("  CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_
 include_directories(${PROJECT_SOURCE_DIR}/include)
 aux_source_directory(${PROJECT_SOURCE_DIR}/src COROS_SRC)
 if(UNIX)
-    SET(DEPENDENT_LIBRARIES uv pthread)
+    SET(DEPENDENT_LIBRARIES uv pthread ${Boost_LIBRARIES})
 else()
-    SET(DEPENDENT_LIBRARIES uv ws2_32)
+    SET(DEPENDENT_LIBRARIES uv ws2_32 ${Boost_LIBRARIES})
 endif()
 
 add_library(coros STATIC ${COROS_SRC})

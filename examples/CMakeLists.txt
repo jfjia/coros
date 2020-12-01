@@ -1,4 +1,4 @@
-set(LIBRARIES coros malog ${DEPENDENT_LIBRARIES} boost_context-mt)
+set(LIBRARIES coros malog ${DEPENDENT_LIBRARIES})
 add_executable(compute compute.cpp)
 target_link_libraries(compute ${LIBRARIES})
 add_executable(echo echo.cpp)
