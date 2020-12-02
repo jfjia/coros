@@ -70,9 +70,9 @@ void ListenerFn(coros::Scheduler* sched) {
       break;
     }
 #ifdef USE_SCHEDULERS
-    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), std::bind(ConnFn, s_new), ExitFn, 32 * 1024);
+    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), std::bind(ConnFn, s_new), ExitFn);
 #else
-    /*coros::Coroutine* c_new = */coros::Coroutine::Create(sched, std::bind(ConnFn, s_new), ExitFn, 32 * 1024);
+    /*coros::Coroutine* c_new = */coros::Coroutine::Create(sched, std::bind(ConnFn, s_new), ExitFn);
 #endif
   }
 }
@@ -86,9 +86,9 @@ int main(int argc, char** argv) {
 #endif
 
 #ifdef USE_SCHEDULERS
-  /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &scheds), ExitFn, 32 * 1024);
+  /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &scheds), ExitFn);
 #else
-  /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &sched), ExitFn, 32 * 1024);
+  /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &sched), ExitFn);
 #endif
 
   sched.Run();

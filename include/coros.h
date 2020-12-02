@@ -122,7 +122,7 @@ public:
   static Coroutine* Create(Scheduler* sched,
                            const std::function<void()>& fn,
                            const std::function<void(Coroutine*)>& exit_fn,
-                           std::size_t stack_size);
+                           std::size_t stack_size = boost::context::stack_traits::default_size());
   void Destroy();
 
   void Resume();

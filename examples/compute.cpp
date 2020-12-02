@@ -74,14 +74,14 @@ int main(int argc, char** argv) {
   coros::Scheduler sched(true);
 #ifdef USE_SCHEDULERS
   coros::Schedulers scheds(kNumWorkers);
-  /*coros::Coroutine* c_guard = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), GuardExitFn, 32 * 1024);
+  /*coros::Coroutine* c_guard = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), GuardExitFn);
 #endif
 
   for (int i = 0; i < kNumCoros; i++) {
 #ifdef USE_SCHEDULERS
-    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetNext(), MyCoFn, ExitFn, 32 * 1024);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetNext(), MyCoFn, ExitFn);
 #else
-    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, MyCoFn, ExitFn, 32 * 1024);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, MyCoFn, ExitFn);
 #endif
   }
 

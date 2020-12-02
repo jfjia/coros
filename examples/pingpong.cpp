@@ -82,7 +82,7 @@ void ListenerFn(coros::Schedulers* scheds) {
     if (s_new == BAD_SOCKET) {
       break;
     }
-    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), std::bind(ServeFn, s_new), ExitFn, 32 * 1024);
+    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), std::bind(ServeFn, s_new), ExitFn);
   }
 }
 
@@ -95,7 +95,7 @@ void GuardFn(coros::Schedulers* scheds) {
   coros::Coroutine* c = coros::Coroutine::Self();
   MALOG_INFO("Create " << clients << " clients");
   for (int i = 0; i < clients; i++) {
-    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), ClientFn, ExitFn, 32 * 1024);
+    /*coros::Coroutine* c_new = */coros::Coroutine::Create(scheds->GetNext(), ClientFn, ExitFn);
   }
 
   int nsecs = 0;
@@ -156,10 +156,10 @@ int main(int argc, char** argv) {
 
   if (is_server) {
     MALOG_INFO("Start pingpoing server");
-    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &scheds), ExitFn, 32 * 1024);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(ListenerFn, &scheds), ExitFn);
   } else {
     MALOG_INFO("Start guard timer");
-    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), ExitFn, 32 * 1024);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), ExitFn);
   }
   sched.Run();
 
