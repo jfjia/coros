@@ -142,7 +142,7 @@ bool Socket::ListenByHost(const std::string& host, int port, int backlog) {
     return false;
   }
 
-  struct addrinfo* addr;
+  struct addrinfo* addr = nullptr;
   for (struct addrinfo* a = result; a && s_ == BAD_SOCKET; a = a->ai_next) {
     if (a->ai_family == AF_INET6) {
       s_ = CreateListenSocket(a->ai_family, a->ai_socktype, a->ai_protocol);
