@@ -11,7 +11,7 @@ inline uv_os_sock_t SetNoSigPipe(uv_os_sock_t s) {
 #ifdef SO_NOSIGPIPE
   if (s != BAD_SOCKET) {
     int no_sigpipe = 1;
-    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(int));
+    setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(int));
   }
 #endif
   return s;

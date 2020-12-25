@@ -340,10 +340,10 @@ Schedulers::Schedulers(int N) : N_(N) {
   scheds_.resize(N);
   threads_.resize(N);
   for (int i = 0; i < N; i++) {
-    scheds_[i] = nullptr;
+    scheds_.push_back(nullptr);
   }
   for (int i = 0; i < N; i++) {
-    threads_[i] = std::move(std::thread(std::bind(&Schedulers::Fn, this, i)));
+    threads_[i] = std::thread(std::bind(&Schedulers::Fn, this, i));
   }
   for (;;) {
     std::unique_lock<std::mutex> lock{lock_};

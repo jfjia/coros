@@ -25,6 +25,10 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -ggdb -DNDEBUG")
 message("  CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+if(APPLE)
+link_directories("/usr/local/lib")
+endif()
+
 aux_source_directory(${PROJECT_SOURCE_DIR}/src COROS_SRC)
 if(UNIX)
     SET(DEPENDENT_LIBRARIES uv pthread ${Boost_LIBRARIES})
