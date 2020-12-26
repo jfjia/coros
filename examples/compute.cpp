@@ -64,10 +64,10 @@ void GuardFn() {
       break;
     }
   }
+  c->GetScheduler()->Stop();
 #ifdef USE_SCHEDULERS
   scheds->Stop();
 #endif
-  c->GetScheduler()->Stop();
 }
 
 void GuardExitFn(coros::Coroutine* c) {
