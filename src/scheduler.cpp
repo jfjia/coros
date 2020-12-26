@@ -120,9 +120,6 @@ void Scheduler::Sweep() {
 Scheduler::~Scheduler() {
   local_sched = nullptr;
   uv_loop_close(loop_ptr_);
-  if (is_default_) {
-    compute_threads.Stop();
-  }
 }
 
 void Scheduler::AddCoroutine(Coroutine* coro) {
@@ -195,24 +192,15 @@ void Scheduler::RunCoros() {
     }
   }
 
-  if (is_default_) {
-    if (waiting_.size() == 0 && outstanding_ == 0) {
-      uv_stop(loop_ptr_);
-    }
-  }
   if (shutdown_) {
-    if (graceful_) {
-      if (waiting_.size() == 0 && outstanding_ == 0) {
-        uv_stop(loop_ptr_);
-      }
-    } else {
-      uv_stop(loop_ptr_);
+    if (is_default_) {
+      compute_threads.Stop();
     }
+    uv_stop(loop_ptr_);
   }
 }
 
-void Scheduler::Stop(bool graceful) {
-  graceful_ = graceful;
+void Scheduler::Stop() {
   shutdown_ = true;
   if (Get() != this) {
     uv_async_send(&async_);
@@ -316,7 +304,7 @@ std::size_t Scheduler::NextId() {
 
 void Schedulers::Stop() {
   for (int i = 0; i < N_; i++) {
-    scheds_[i]->Stop(true);
+    scheds_[i]->Stop();
   }
   for (int i = 0; i < N_; i++) {
     threads_[i].join();

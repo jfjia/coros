@@ -54,6 +54,9 @@ void ExitFn(coros::Coroutine* c) {
 
 #ifdef USE_SCHEDULERS
 void GuardFn(coros::Schedulers* scheds) {
+#else
+void GuardFn() {
+#endif
   coros::Coroutine* c = coros::Coroutine::Self();
   for (;;) {
     c->Wait(500);
@@ -61,12 +64,14 @@ void GuardFn(coros::Schedulers* scheds) {
       break;
     }
   }
+#ifdef USE_SCHEDULERS
   scheds->Stop();
+#endif
+  c->GetScheduler()->Stop();
 }
 
 void GuardExitFn(coros::Coroutine* c) {
 }
-#endif
 
 int main(int argc, char** argv) {
   MALOG_OPEN_STDIO(1, true);
@@ -75,6 +80,8 @@ int main(int argc, char** argv) {
 #ifdef USE_SCHEDULERS
   coros::Schedulers scheds(kNumWorkers);
   /*coros::Coroutine* c_guard = */coros::Coroutine::Create(&sched, std::bind(GuardFn, &scheds), GuardExitFn);
+#else
+  /*coros::Coroutine* c_guard = */coros::Coroutine::Create(&sched, GuardFn, GuardExitFn);
 #endif
 
   for (int i = 0; i < kNumCoros; i++) {

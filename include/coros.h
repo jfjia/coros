@@ -196,7 +196,7 @@ public:
   uv_loop_t* GetLoop();
   std::size_t GetId() const;
 
-  void Stop(bool graceful);
+  void Stop();
   void SetScheduleParams(int tight_loop, int coro_buget);
 
 protected:
@@ -225,7 +225,6 @@ protected:
   CoroutineList posted_;
   CoroutineList compute_done_;
   std::atomic<bool> shutdown_{ false };
-  std::atomic<bool> graceful_{ false };
   int tight_loop_{ 512 };
   int coro_buget_{ 32 };
 };
