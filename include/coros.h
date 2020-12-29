@@ -92,7 +92,7 @@ protected:
 template<int N>
 class Buffer {
 public:
-  Buffer(Socket* s);
+  Buffer(Socket* s = nullptr);
 
   void Attach(Socket* s);
 
