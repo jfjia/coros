@@ -92,7 +92,9 @@ protected:
 template<int N>
 class Buffer {
 public:
-  Buffer(Socket& s);
+  Buffer(Socket* s);
+
+  void Attach(Socket* s);
 
   int EnsureData(int n);
   char* Data();
@@ -113,7 +115,7 @@ protected:
   char data_[N];
   int read_index_{ 0 };
   int write_index_{ 0 };
-  Socket& s_;
+  Socket* s_{ nullptr };
 };
 
 class Coroutine {
@@ -282,7 +284,12 @@ inline int Socket::ReadExactly(char* buf, int len) {
 }
 
 template<int N>
-inline Buffer<N>::Buffer(Socket& s) : s_(s) {
+inline Buffer<N>::Buffer(Socket* s) : s_(s) {
+}
+
+template<int N>
+inline void Buffer<N>::Attach(Socket* s) {
+  s_ = s;
 }
 
 template<int N>
@@ -341,7 +348,7 @@ inline int Buffer<N>::EnsureSpace(int n) {
   if (N < n) {
     return -1;
   }
-  int rc = s_.WriteExactly(Data(), Size());
+  int rc = s_->WriteExactly(Data(), Size());
   if (rc != Size()) {
     return rc;
   }
@@ -357,7 +364,7 @@ inline int Buffer<N>::SpaceSize() {
 template<int N>
 inline int Buffer<N>::Flush() {
   int size = Size();
-  int rc = s_.WriteExactly(Data(), size);
+  int rc = s_->WriteExactly(Data(), size);
   if (rc != size) {
     return rc;
   }
@@ -374,7 +381,7 @@ inline int Buffer<N>::EnsureData(int n) {
   if ((N - read_index_) < n) {
     Compact();
   }
-  int rc = s_.ReadAtLeast(Space(), SpaceSize(), n - Size());
+  int rc = s_->ReadAtLeast(Space(), SpaceSize(), n - Size());
   if (rc <= 0) {
     return rc;
   }
