@@ -60,6 +60,7 @@ class Socket {
 public:
   Socket(uv_os_sock_t s = BAD_SOCKET);
 
+  void Attach(uv_os_sock_t s);
   void Close();
 
   void SetDeadline(int timeout_secs);
@@ -261,6 +262,11 @@ inline Socket::Socket(uv_os_sock_t s)
   if (s != BAD_SOCKET) {
     uv_poll_init_socket(Scheduler::Get()->GetLoop(), &poll_, s_);
   }
+}
+
+inline void Socket::Attach(uv_os_sock_t s) {
+  s_ = s;
+  uv_poll_init_socket(Scheduler::Get()->GetLoop(), &poll_, s_);
 }
 
 inline void Socket::SetDeadline(int timeout_secs) {
