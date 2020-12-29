@@ -25,12 +25,22 @@ std::string GetId(coros::Coroutine* c) {
   return ss.str();
 }
 
+struct ClsData {
+  std::string param1;
+
+  ClsData() {
+    param1 = "hello, cls";
+  }
+};
+
 void MyCoFn() {
   coros::Coroutine* c = coros::Coroutine::Self();
 
   std::string id = GetId(c);
 
-  MALOG_INFO(id << ": MyCoFn() in coro thread-" << std::this_thread::get_id());
+  ClsData* cls = new (c->GetCls()) ClsData();
+
+  MALOG_INFO(id << ": MyCoFn() in coro thread-" << std::this_thread::get_id() << ", cls=" << cls->param1);
 
   int msecs = u(e);
   c->Wait(msecs); // This will not block Scheduler thread, just suspend current coroutine
@@ -42,6 +52,7 @@ void MyCoFn() {
   std::this_thread::sleep_for(std::chrono::milliseconds(msecs));
   c->EndCompute();
 
+  cls->~ClsData();
   MALOG_INFO(id << ": back in coro thread-" << std::this_thread::get_id());
 }
 
@@ -86,9 +97,9 @@ int main(int argc, char** argv) {
 
   for (int i = 0; i < kNumCoros; i++) {
 #ifdef USE_SCHEDULERS
-    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetNext(), MyCoFn, ExitFn);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(scheds.GetNext(), MyCoFn, ExitFn, sizeof(ClsData));
 #else
-    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, MyCoFn, ExitFn);
+    /*coros::Coroutine* c = */coros::Coroutine::Create(&sched, MyCoFn, ExitFn, sizeof(ClsData));
 #endif
   }
 

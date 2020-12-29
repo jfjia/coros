@@ -122,6 +122,7 @@ public:
   static Coroutine* Create(Scheduler* sched,
                            const std::function<void()>& fn,
                            const std::function<void(Coroutine*)>& exit_fn,
+                           std::size_t cls_size = 0,
                            std::size_t stack_size = boost::context::stack_traits::default_size());
   void Destroy();
 
@@ -145,6 +146,8 @@ public:
   void SetTimeout(int seconds);
   bool CheckBuget();
 
+  void* GetCls() const;
+
 private:
   friend class Scheduler;
   void CheckTimeout();
@@ -154,6 +157,7 @@ private:
   boost::context::detail::fcontext_t ctx_{ nullptr };
   boost::context::detail::fcontext_t caller_{ nullptr };
   boost::context::stack_context stack_;
+  std::size_t cls_size_{ 0 };
   std::function<void()> fn_;
   std::function<void(Coroutine*)> exit_fn_;
   Scheduler* sched_{ nullptr };
@@ -462,6 +466,10 @@ inline void Coroutine::CheckTimeout() {
       }
     }
   }
+}
+
+inline void* Coroutine::GetCls() const {
+  return static_cast<char*>(stack_.sp);
 }
 
 inline void Condition::Wait(Coroutine* coro) {

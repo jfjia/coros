@@ -5,11 +5,12 @@
 namespace coros {
 
 #define alignment16(a) (((a)+0x0F)&(~0x0F))
-static const std::size_t kReservedSize = alignment16(sizeof(Coroutine) + 64);
+static const std::size_t kReservedSize = alignment16(sizeof(Coroutine));
 
 Coroutine* Coroutine::Create(Scheduler* sched,
                              const std::function<void()>& fn,
                              const std::function<void(Coroutine*)>& exit_fn,
+                             std::size_t cls_size,
                              std::size_t stack_size) {
   if (!sched) {
     sched = Scheduler::Get();
@@ -21,11 +22,14 @@ Coroutine* Coroutine::Create(Scheduler* sched,
     return nullptr;
   }
 
-  Coroutine* c = new (static_cast<char*>(stack.sp) - kReservedSize + 32)Coroutine;
-  stack.sp = static_cast<char*>(stack.sp) - kReservedSize;
-  stack.size -= kReservedSize;
+  Coroutine* c = new (static_cast<char*>(stack.sp) - kReservedSize)Coroutine;
+
+  cls_size = cls_size > 0 ? alignment16(cls_size) : 0;
+  stack.sp = static_cast<char*>(stack.sp) - (kReservedSize + cls_size);
+  stack.size -= (kReservedSize + cls_size);
 
   c->stack_ = stack;
+  c->cls_size_ = cls_size;
   c->sched_ = sched;
   c->id_ = NextId();
   c->fn_ = fn;
@@ -53,8 +57,8 @@ void Coroutine::Destroy() {
     joined_->Wakeup(EVENT_JOIN);
   }
   exit_fn_(this);
-  stack_.sp = static_cast<char*>(stack_.sp) + kReservedSize;
-  stack_.size += kReservedSize;
+  stack_.sp = static_cast<char*>(stack_.sp) + (kReservedSize + cls_size_);
+  stack_.size += (kReservedSize + cls_size_);
   this->~Coroutine();
   boost::context::fixedsize_stack stack_alloc(stack_.size);
   stack_alloc.deallocate(stack_);
