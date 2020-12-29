@@ -385,7 +385,7 @@ inline int Buffer<N>::EnsureData(int n) {
   if (rc <= 0) {
     return rc;
   }
-  Commit(n);
+  Commit(rc);
   return n;
 }
 
