@@ -109,8 +109,6 @@ void GuardFn(coros::Schedulers* scheds) {
 }
 
 int main(int argc, char** argv) {
-  MALOG_OPEN_STDIO(1, true);
-
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
     if (arg == "-d") {

@@ -78,8 +78,6 @@ void ListenerFn(coros::Scheduler* sched) {
 }
 
 int main(int argc, char** argv) {
-  MALOG_OPEN_STDIO(1, true);
-
   coros::Scheduler sched(true);
 #ifdef USE_SCHEDULERS
   coros::Schedulers scheds(kNumWorkers);
